@@ -1,0 +1,6 @@
+{
+  "name": "Learn Vocabulary",
+  "description": "Mobile-first reels-style vocabulary learning app with 1000 extracted words, Hindi meanings, vertical swipe navigation, and quiz mode.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
