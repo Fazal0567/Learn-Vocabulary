@@ -111,7 +111,7 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
               </button>
             </div>
             <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-1.5">
-              Only authorized administrators can add or manage words.
+              Authorized administrator access only.
             </p>
           </div>
 
