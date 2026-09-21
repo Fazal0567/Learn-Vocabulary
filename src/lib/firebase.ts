@@ -139,8 +139,8 @@ export async function loginAdminWithPasscode(
   const entered = enteredPasscode.trim();
   const valid = validPasscode.trim();
 
-  // Accept current configured passcode, or default initial 'admin123'
-  if (entered !== valid && entered !== 'admin123') {
+  // Strictly validate against the active passcode
+  if (entered !== valid) {
     throw new Error('Incorrect admin passcode. Please enter the correct passcode.');
   }
 
