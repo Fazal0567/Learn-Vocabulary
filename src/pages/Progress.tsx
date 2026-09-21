@@ -25,6 +25,7 @@ interface ProgressProps {
     correctAnswers: number;
   };
   onNavigate: (tab: NavigationTab) => void;
+  totalWordsCount?: number;
 }
 
 export const Progress: React.FC<ProgressProps> = ({
@@ -36,8 +37,9 @@ export const Progress: React.FC<ProgressProps> = ({
   todayLearnedCount,
   quizStats,
   onNavigate,
+  totalWordsCount,
 }) => {
-  const totalWords = VOCABULARY_DATA.length;
+  const totalWords = totalWordsCount || VOCABULARY_DATA.length;
   const remainingCount = Math.max(0, totalWords - learnedCount);
   const learnedPercentage = totalWords > 0 ? Math.round((learnedCount / totalWords) * 100) : 0;
   const dailyPercentage = Math.min(100, Math.round((todayLearnedCount / dailyGoal) * 100));

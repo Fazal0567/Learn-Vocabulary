@@ -97,6 +97,11 @@ export const WordCard: React.FC<WordCardProps> = ({
           <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-md bg-stone-200/70 dark:bg-stone-800 text-stone-700 dark:text-stone-300">
             Word {item.id}
           </span>
+          {item.isCustom && (
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800/80">
+              Admin Added
+            </span>
+          )}
           {item.pos && (
             <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200/60 dark:border-amber-900/50">
               {item.pos}
@@ -217,7 +222,13 @@ export const WordCard: React.FC<WordCardProps> = ({
               💡 Vocabulary Tip:
             </p>
             <p>
-              Pay special attention to the prepositions usually paired with <span className="font-bold text-amber-600 dark:text-amber-400">{item.word.toLowerCase()}</span> in Cloze Tests and Sentence Fillers.
+              {item.customTip ? (
+                item.customTip
+              ) : (
+                <>
+                  Pay special attention to the prepositions usually paired with <span className="font-bold text-amber-600 dark:text-amber-400">{item.word.toLowerCase()}</span> in Cloze Tests and Sentence Fillers.
+                </>
+              )}
             </p>
           </motion.div>
         )}

@@ -15458,5 +15458,6 @@ export const VOCABULARY_DATA: WordItem[] = [
       "Bottom"
     ],
     "example": "Her banking career reached its zenith when she was appointed CEO."
-  }
+  },
+  
 ];

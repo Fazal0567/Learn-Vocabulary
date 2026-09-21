@@ -18,6 +18,7 @@ interface RevisionProps {
   importantIds: number[];
   difficultIds: number[];
   onStartRevision: (filter: RevisionFilter, wordId?: number) => void;
+  allWords?: WordItem[];
 }
 
 export const Revision: React.FC<RevisionProps> = ({
@@ -26,26 +27,28 @@ export const Revision: React.FC<RevisionProps> = ({
   importantIds,
   difficultIds,
   onStartRevision,
+  allWords,
 }) => {
   const [selectedFilter, setSelectedFilter] = useState<RevisionFilter>('unlearned');
 
+  const total = allWords?.length || 1000;
   const counts = {
-    all: 1000,
-    unlearned: 1000 - learnedIds.length,
+    all: total,
+    unlearned: Math.max(0, total - learnedIds.length),
     important: importantIds.length,
     favorites: favoriteIds.length,
     difficult: difficultIds.length,
   };
 
   const previewWords = useMemo(() => {
-    return filterVocabulary(selectedFilter, learnedIds, favoriteIds, importantIds, difficultIds);
-  }, [selectedFilter, learnedIds, favoriteIds, importantIds, difficultIds]);
+    return filterVocabulary(selectedFilter, learnedIds, favoriteIds, importantIds, difficultIds, allWords);
+  }, [selectedFilter, learnedIds, favoriteIds, importantIds, difficultIds, allWords]);
 
   const filterCards = [
     {
       id: 'all' as RevisionFilter,
-      label: 'All 1000 Words',
-      desc: 'Full vocabulary repository extracted from Vishal Sir PDF',
+      label: `All ${total} Words`,
+      desc: 'Full vocabulary repository with meanings and synonyms',
       count: counts.all,
       icon: Layers,
       color: 'text-stone-600 bg-stone-100 dark:bg-stone-800 dark:text-stone-300',

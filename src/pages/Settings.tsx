@@ -7,6 +7,11 @@ import {
   RotateCcw,
   Target,
   Info,
+  ShieldCheck,
+  Plus,
+  Lock,
+  KeyRound,
+  BookPlus,
 } from 'lucide-react';
 import { UserSettings } from '../types';
 
@@ -14,12 +19,26 @@ interface SettingsProps {
   settings: UserSettings;
   onUpdateSettings: (newSettings: Partial<UserSettings>) => void;
   onRequestReset: () => void;
+  isAdmin?: boolean;
+  customWordsCount?: number;
+  onOpenAdminAuth?: () => void;
+  onOpenAddWord?: () => void;
+  onOpenManageCustomWords?: () => void;
+  onOpenChangePin?: () => void;
+  onLockAdmin?: () => void;
 }
 
 export const Settings: React.FC<SettingsProps> = ({
   settings,
   onUpdateSettings,
   onRequestReset,
+  isAdmin = false,
+  customWordsCount = 0,
+  onOpenAdminAuth,
+  onOpenAddWord,
+  onOpenManageCustomWords,
+  onOpenChangePin,
+  onLockAdmin,
 }) => {
   const [customGoalInput, setCustomGoalInput] = useState('');
   const [isCustomMode, setIsCustomMode] = useState(false);
@@ -262,6 +281,90 @@ export const Settings: React.FC<SettingsProps> = ({
             />
           </button>
         </div>
+      </div>
+
+      {/* Admin Privilege & Word Management Section */}
+      <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 shadow-sm space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 font-bold text-xs uppercase tracking-wider">
+            <ShieldCheck className="w-4 h-4" />
+            <span>Admin Word Management</span>
+          </div>
+          {isAdmin ? (
+            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+              Admin Mode Active
+            </span>
+          ) : (
+            <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400">
+              Restricted Access
+            </span>
+          )}
+        </div>
+
+        {isAdmin ? (
+          <div className="space-y-3 pt-1">
+            <p className="text-xs text-stone-600 dark:text-stone-400 leading-relaxed">
+              As an authenticated admin, you can add new vocabulary words with Hindi meanings, parts of speech, synonyms, and tips.
+            </p>
+
+            <div className="p-3 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-900/40 flex items-center justify-between text-xs">
+              <span className="font-semibold text-stone-700 dark:text-stone-300">Custom Words Added:</span>
+              <span className="font-mono font-bold text-amber-600 dark:text-amber-400">{customWordsCount} words</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+              <button
+                id="admin-add-new-word-btn"
+                onClick={onOpenAddWord}
+                className="py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add New Word</span>
+              </button>
+
+              <button
+                id="admin-manage-words-btn"
+                onClick={onOpenManageCustomWords}
+                className="py-2.5 px-3 rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-750 text-stone-800 dark:text-stone-200 text-xs font-bold border border-stone-200 dark:border-stone-700 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+              >
+                <BookPlus className="w-4 h-4 text-amber-600" />
+                <span>Manage Words ({customWordsCount})</span>
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between pt-1 text-xs border-t border-stone-100 dark:border-stone-800/80">
+              <button
+                onClick={onOpenChangePin}
+                className="text-stone-600 dark:text-stone-400 hover:text-amber-600 dark:hover:text-amber-400 flex items-center gap-1 font-medium transition-colors cursor-pointer"
+              >
+                <KeyRound className="w-3.5 h-3.5" />
+                <span>Change Admin Passcode</span>
+              </button>
+
+              <button
+                onClick={onLockAdmin}
+                className="text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 flex items-center gap-1 font-medium transition-colors cursor-pointer"
+              >
+                <Lock className="w-3.5 h-3.5" />
+                <span>Lock Admin Mode</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3 pt-1">
+            <p className="text-xs text-stone-600 dark:text-stone-400 leading-relaxed">
+              Adding new vocabulary words is protected and restricted only to verified administrators.
+            </p>
+            <button
+              id="unlock-admin-mode-btn"
+              onClick={onOpenAdminAuth}
+              className="w-full py-2.5 px-4 text-xs font-bold rounded-xl bg-amber-500 hover:bg-amber-600 text-white shadow-sm flex items-center justify-center gap-2 cursor-pointer transition-colors"
+            >
+              <Lock className="w-4 h-4" />
+              <span>Unlock Admin Access to Add Words</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Reset Progress Section */}

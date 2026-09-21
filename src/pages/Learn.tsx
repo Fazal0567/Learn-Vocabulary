@@ -9,6 +9,7 @@ import {
   Search,
   Moon,
   Sun,
+  Plus,
 } from 'lucide-react';
 import { WordItem, RevisionFilter } from '../types';
 import { WordCard } from '../components/WordCard';
@@ -34,6 +35,9 @@ interface LearnProps {
   animationsEnabled?: boolean;
   darkMode?: boolean;
   onToggleDarkMode?: () => void;
+  allWords?: WordItem[];
+  isAdmin?: boolean;
+  onOpenAddWord?: () => void;
 }
 
 export const Learn: React.FC<LearnProps> = ({
@@ -53,6 +57,9 @@ export const Learn: React.FC<LearnProps> = ({
   animationsEnabled = true,
   darkMode = false,
   onToggleDarkMode,
+  allWords,
+  isAdmin = false,
+  onOpenAddWord,
 }) => {
   const [direction, setDirection] = useState<'up' | 'down'>('up');
   const learnWrapperRef = useRef<HTMLDivElement>(null);
@@ -60,8 +67,8 @@ export const Learn: React.FC<LearnProps> = ({
 
   // Active word list based on filter
   const activeWordList = useMemo(() => {
-    return filterVocabulary(filterMode, learnedIds, favoriteIds, importantIds, difficultIds);
-  }, [filterMode, learnedIds, favoriteIds, importantIds, difficultIds]);
+    return filterVocabulary(filterMode, learnedIds, favoriteIds, importantIds, difficultIds, allWords);
+  }, [filterMode, learnedIds, favoriteIds, importantIds, difficultIds, allWords]);
 
   // Current word index inside current filtered list
   const currentIndex = useMemo(() => {
@@ -128,7 +135,7 @@ export const Learn: React.FC<LearnProps> = ({
   }, [swipeHandlers]);
 
   const filterLabels: Record<RevisionFilter, string> = {
-    all: 'All 1000 Words',
+    all: `All ${allWords?.length || 1000} Words`,
     unlearned: 'Unlearned',
     important: 'Starred Words',
     favorites: 'Favorites',
@@ -147,8 +154,20 @@ export const Learn: React.FC<LearnProps> = ({
         categoryLabel={filterMode !== 'all' ? filterLabels[filterMode] : undefined}
       />
 
-      {/* Floating Header Actions: Dark Mode Toggle & Search */}
+      {/* Floating Header Actions: Admin Add, Dark Mode Toggle & Search */}
       <div className="absolute top-2 right-3 z-30 flex items-center gap-1.5">
+        {isAdmin && onOpenAddWord && (
+          <button
+            id="admin-add-word-btn-learn"
+            onClick={onOpenAddWord}
+            aria-label="Admin Add Word"
+            className="px-2 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-bold flex items-center gap-1 shadow-xs transition-colors cursor-pointer"
+            title="Add New Word (Admin)"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Add Word</span>
+          </button>
+        )}
         {onToggleDarkMode && (
           <button
             id="dark-mode-toggle-btn-learn"

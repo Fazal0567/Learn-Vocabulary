@@ -7,6 +7,8 @@ export interface WordItem {
   synonyms: string[];
   antonyms: string[];
   example: string;
+  isCustom?: boolean;
+  customTip?: string;
 }
 
 export type NavigationTab =

@@ -9,6 +9,7 @@ interface SearchModalProps {
   onClose?: () => void;
   onSelectWord: (wordId: number) => void;
   isInline?: boolean;
+  allWords?: WordItem[];
 }
 
 export const SearchModal: React.FC<SearchModalProps> = ({
@@ -16,6 +17,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
   onClose,
   onSelectWord,
   isInline = false,
+  allWords,
 }) => {
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -27,8 +29,8 @@ export const SearchModal: React.FC<SearchModalProps> = ({
   }, [isOpen]);
 
   const results = useMemo(() => {
-    return searchVocabulary(query);
-  }, [query]);
+    return searchVocabulary(query, allWords);
+  }, [query, allWords]);
 
   if (!isOpen && !isInline) return null;
 

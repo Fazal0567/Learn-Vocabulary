@@ -9,6 +9,7 @@ interface FavoritesProps {
   onToggleFavorite: (id: number) => void;
   onOpenWordInViewer: (id: number) => void;
   onStartRevision: () => void;
+  allWords?: WordItem[];
 }
 
 export const Favorites: React.FC<FavoritesProps> = ({
@@ -16,8 +17,10 @@ export const Favorites: React.FC<FavoritesProps> = ({
   onToggleFavorite,
   onOpenWordInViewer,
   onStartRevision,
+  allWords,
 }) => {
-  const favoriteWords = VOCABULARY_DATA.filter(w => favoriteIds.includes(w.id));
+  const list = allWords || VOCABULARY_DATA;
+  const favoriteWords = list.filter(w => favoriteIds.includes(w.id));
 
   return (
     <div className="w-full h-full overflow-y-auto p-4 sm:p-6 max-w-lg mx-auto space-y-4">

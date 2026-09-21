@@ -9,7 +9,8 @@ export function filterVocabulary(
   learnedIds: number[],
   favoriteIds: number[],
   importantIds: number[],
-  difficultIds: number[]
+  difficultIds: number[],
+  vocabularyList: WordItem[] = VOCABULARY_DATA
 ): WordItem[] {
   const learnedSet = new Set(learnedIds);
   const favoriteSet = new Set(favoriteIds);
@@ -18,27 +19,27 @@ export function filterVocabulary(
 
   switch (filter) {
     case 'unlearned':
-      return VOCABULARY_DATA.filter(w => !learnedSet.has(w.id));
+      return vocabularyList.filter(w => !learnedSet.has(w.id));
     case 'important':
-      return VOCABULARY_DATA.filter(w => importantSet.has(w.id));
+      return vocabularyList.filter(w => importantSet.has(w.id));
     case 'favorites':
-      return VOCABULARY_DATA.filter(w => favoriteSet.has(w.id));
+      return vocabularyList.filter(w => favoriteSet.has(w.id));
     case 'difficult':
-      return VOCABULARY_DATA.filter(w => difficultSet.has(w.id));
+      return vocabularyList.filter(w => difficultSet.has(w.id));
     case 'all':
     default:
-      return VOCABULARY_DATA;
+      return vocabularyList;
   }
 }
 
 /**
  * Full-text search across word, hindi, english, synonyms, antonyms
  */
-export function searchVocabulary(query: string): WordItem[] {
+export function searchVocabulary(query: string, vocabularyList: WordItem[] = VOCABULARY_DATA): WordItem[] {
   const q = query.trim().toLowerCase();
   if (!q) return [];
 
-  return VOCABULARY_DATA.filter(item => {
+  return vocabularyList.filter(item => {
     if (item.word.toLowerCase().includes(q)) return true;
     if (item.meaningHindi.includes(q)) return true;
     if (item.meaningEnglish.toLowerCase().includes(q)) return true;
@@ -51,9 +52,10 @@ export function searchVocabulary(query: string): WordItem[] {
 /**
  * Generate randomized Quiz questions from vocabulary database
  */
-export function generateQuizQuestions(count: number = 10): QuizQuestion[] {
+export function generateQuizQuestions(count: number = 10, vocabularyList: WordItem[] = VOCABULARY_DATA): QuizQuestion[] {
   const questions: QuizQuestion[] = [];
-  const total = VOCABULARY_DATA.length;
+  const total = vocabularyList.length;
+  if (total === 0) return [];
   const usedWordIds = new Set<number>();
 
   const types: ('meaning' | 'synonym' | 'antonym' | 'hindi')[] = [
@@ -69,7 +71,7 @@ export function generateQuizQuestions(count: number = 10): QuizQuestion[] {
     let attempts = 0;
     do {
       const randIndex = Math.floor(Math.random() * total);
-      target = VOCABULARY_DATA[randIndex];
+      target = vocabularyList[randIndex];
       attempts++;
     } while (usedWordIds.has(target.id) && attempts < 50);
 
@@ -78,9 +80,9 @@ export function generateQuizQuestions(count: number = 10): QuizQuestion[] {
 
     // Pick 3 distractors
     const distractors: WordItem[] = [];
-    while (distractors.length < 3) {
+    while (distractors.length < Math.min(3, total - 1)) {
       const idx = Math.floor(Math.random() * total);
-      const d = VOCABULARY_DATA[idx];
+      const d = vocabularyList[idx];
       if (d.id !== target.id && !distractors.some(x => x.id === d.id)) {
         distractors.push(d);
       }

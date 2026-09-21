@@ -9,6 +9,7 @@ interface ImportantProps {
   onToggleImportant: (id: number) => void;
   onOpenWordInViewer: (id: number) => void;
   onStartRevision: () => void;
+  allWords?: WordItem[];
 }
 
 export const Important: React.FC<ImportantProps> = ({
@@ -16,8 +17,10 @@ export const Important: React.FC<ImportantProps> = ({
   onToggleImportant,
   onOpenWordInViewer,
   onStartRevision,
+  allWords,
 }) => {
-  const importantWords = VOCABULARY_DATA.filter(w => importantIds.includes(w.id));
+  const list = allWords || VOCABULARY_DATA;
+  const importantWords = list.filter(w => importantIds.includes(w.id));
 
   return (
     <div className="w-full h-full overflow-y-auto p-4 sm:p-6 max-w-lg mx-auto space-y-4">

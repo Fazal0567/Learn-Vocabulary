@@ -9,15 +9,16 @@ import {
   HelpCircle,
   Volume2,
 } from 'lucide-react';
-import { QuizQuestion } from '../types';
+import { WordItem, QuizQuestion } from '../types';
 import { generateQuizQuestions } from '../utils/vocabularyUtils';
 import { speakWord } from '../utils/speech';
 
 interface QuizProps {
   onUpdateQuizStats?: (correct: boolean) => void;
+  allWords?: WordItem[];
 }
 
-export const Quiz: React.FC<QuizProps> = ({ onUpdateQuizStats }) => {
+export const Quiz: React.FC<QuizProps> = ({ onUpdateQuizStats, allWords }) => {
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
@@ -27,7 +28,7 @@ export const Quiz: React.FC<QuizProps> = ({ onUpdateQuizStats }) => {
   const [isCompleted, setIsCompleted] = useState(false);
 
   const startNewQuiz = () => {
-    const qList = generateQuizQuestions(10);
+    const qList = generateQuizQuestions(10, allWords);
     setQuestions(qList);
     setCurrentIndex(0);
     setSelectedOption(null);
@@ -39,7 +40,7 @@ export const Quiz: React.FC<QuizProps> = ({ onUpdateQuizStats }) => {
 
   useEffect(() => {
     startNewQuiz();
-  }, []);
+  }, [allWords]);
 
   if (questions.length === 0) {
     return (

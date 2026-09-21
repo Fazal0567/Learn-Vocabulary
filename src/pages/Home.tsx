@@ -13,6 +13,8 @@ import {
   TrendingUp,
   Moon,
   Sun,
+  Plus,
+  ShieldCheck,
 } from 'lucide-react';
 import { WordItem, NavigationTab } from '../types';
 import { VOCABULARY_DATA } from '../data/vocabulary';
@@ -29,6 +31,10 @@ interface HomeProps {
   onSelectWord: (wordId: number) => void;
   darkMode?: boolean;
   onToggleDarkMode?: () => void;
+  allWords?: WordItem[];
+  isAdmin?: boolean;
+  onOpenAddWord?: () => void;
+  onOpenAdminAuth?: () => void;
 }
 
 export const Home: React.FC<HomeProps> = ({
@@ -43,9 +49,14 @@ export const Home: React.FC<HomeProps> = ({
   onSelectWord,
   darkMode = false,
   onToggleDarkMode,
+  allWords,
+  isAdmin = false,
+  onOpenAddWord,
+  onOpenAdminAuth,
 }) => {
-  const currentWord = VOCABULARY_DATA.find(w => w.id === currentWordId) || VOCABULARY_DATA[0];
-  const totalWords = VOCABULARY_DATA.length;
+  const wordsList = allWords || VOCABULARY_DATA;
+  const currentWord = wordsList.find(w => w.id === currentWordId) || wordsList[0];
+  const totalWords = wordsList.length;
   const overallPercentage = Math.round((learnedCount / totalWords) * 100);
   const dailyPercentage = Math.min(100, Math.round((todayLearnedCount / dailyGoal) * 100));
 
@@ -235,6 +246,32 @@ export const Home: React.FC<HomeProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Admin Quick Action Banner */}
+      {isAdmin && onOpenAddWord && (
+        <div className="p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 flex items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-emerald-500 text-white flex items-center justify-center font-bold">
+              <ShieldCheck className="w-4 h-4" />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-emerald-900 dark:text-emerald-200">
+                Admin Mode Active
+              </h4>
+              <p className="text-[11px] text-emerald-700 dark:text-emerald-400">
+                You can add and manage vocabulary words
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onOpenAddWord}
+            className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1 shadow-sm transition-all shrink-0 cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Add Word</span>
+          </button>
+        </div>
+      )}
 
       {/* Quick Launch Cards */}
       <div className="grid grid-cols-2 gap-3 pt-1">

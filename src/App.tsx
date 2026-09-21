@@ -3,9 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Check } from 'lucide-react';
 import { useLocalStorage } from './hooks/useLocalStorage';
-import { NavigationTab, RevisionFilter, UserSettings } from './types';
+import { NavigationTab, RevisionFilter, UserSettings, WordItem } from './types';
 import { VOCABULARY_DATA } from './data/vocabulary';
 import { Home } from './pages/Home';
 import { Learn } from './pages/Learn';
@@ -18,6 +19,10 @@ import { Settings } from './pages/Settings';
 import { SearchModal } from './components/SearchModal';
 import { BottomNavigation } from './components/BottomNavigation';
 import { ConfirmModal } from './components/ConfirmModal';
+import { AdminAuthModal } from './components/AdminAuthModal';
+import { AddWordModal } from './components/AddWordModal';
+import { ManageCustomWordsModal } from './components/ManageCustomWordsModal';
+import { ChangeAdminPasscodeModal } from './components/ChangeAdminPasscodeModal';
 
 export default function App() {
   // Navigation State
@@ -25,6 +30,33 @@ export default function App() {
   const [revisionFilter, setRevisionFilter] = useState<RevisionFilter>('all');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+
+  // Dynamic Vocabulary: Custom Admin Words + Master Dictionary
+  const [customWords, setCustomWords] = useLocalStorage<WordItem[]>('vocab_customWords', []);
+
+  // Admin Access & Controls (Restricted: Only Admin can add words)
+  const [isAdmin, setIsAdmin] = useLocalStorage<boolean>('vocab_isAdmin', false);
+  const [adminPin, setAdminPin] = useLocalStorage<string>('vocab_adminPin', 'admin123');
+
+  // Admin Modal States
+  const [isAdminAuthOpen, setIsAdminAuthOpen] = useState(false);
+  const [isAddWordOpen, setIsAddWordOpen] = useState(false);
+  const [isManageWordsOpen, setIsManageWordsOpen] = useState(false);
+  const [isChangePinOpen, setIsChangePinOpen] = useState(false);
+  const [wordToEdit, setWordToEdit] = useState<WordItem | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 3000);
+  };
+
+  // Combined Reactive Vocabulary
+  const allWords = useMemo(() => {
+    return [...VOCABULARY_DATA, ...customWords];
+  }, [customWords]);
 
   // Persistent User Data (LocalStorage)
   const [currentWordId, setCurrentWordId] = useLocalStorage<number>('vocab_currentWord', 1);
@@ -143,6 +175,49 @@ export default function App() {
     setIsSearchOpen(false);
   };
 
+  // Admin Actions (Strictly restricted to Admin mode)
+  const handleSaveWord = (wordData: Omit<WordItem, 'id'>, editId?: number) => {
+    if (editId) {
+      setCustomWords((prev) =>
+        prev.map((w) => (w.id === editId ? { ...w, ...wordData, id: editId, isCustom: true } : w))
+      );
+      showToast(`Word "${wordData.word}" updated successfully!`);
+    } else {
+      const maxId = allWords.reduce((max, w) => Math.max(max, w.id), 0);
+      const newId = maxId + 1;
+      const newWord: WordItem = {
+        ...wordData,
+        id: newId,
+        isCustom: true,
+      };
+      setCustomWords((prev) => [...prev, newWord]);
+      showToast(`Word "${newWord.word}" added to catalog (Word #${newId})!`);
+      // Note: User's current reading position (currentWordId) and tab remain strictly untouched
+    }
+  };
+
+  const handleDeleteCustomWord = (id: number) => {
+    const deletedWord = customWords.find((w) => w.id === id);
+    setCustomWords((prev) => prev.filter((w) => w.id !== id));
+    setLearnedIds((prev) => prev.filter((itemId) => itemId !== id));
+    setFavoriteIds((prev) => prev.filter((itemId) => itemId !== id));
+    setImportantIds((prev) => prev.filter((itemId) => itemId !== id));
+    setDifficultIds((prev) => prev.filter((itemId) => itemId !== id));
+    if (currentWordId === id) {
+      setCurrentWordId(1);
+    }
+    showToast(`Word "${deletedWord?.word || id}" deleted successfully.`);
+  };
+
+  const handleEditWord = (word: WordItem) => {
+    setWordToEdit(word);
+    setIsAddWordOpen(true);
+  };
+
+  const handleLockAdmin = () => {
+    setIsAdmin(false);
+  };
+
   return (
     <div className="w-screen h-[100dvh] flex flex-col bg-stone-100 dark:bg-stone-950 text-stone-900 dark:text-stone-100 overflow-hidden font-['Plus_Jakarta_Sans',sans-serif]">
       {/* Main Content Area */}
@@ -163,6 +238,13 @@ export default function App() {
             onSelectWord={handleJumpToWord}
             darkMode={settings.darkMode}
             onToggleDarkMode={handleToggleDarkMode}
+            allWords={allWords}
+            isAdmin={isAdmin}
+            onOpenAddWord={() => {
+              setWordToEdit(null);
+              setIsAddWordOpen(true);
+            }}
+            onOpenAdminAuth={() => setIsAdminAuthOpen(true)}
           />
         )}
 
@@ -184,6 +266,12 @@ export default function App() {
             animationsEnabled={settings.animations}
             darkMode={settings.darkMode}
             onToggleDarkMode={handleToggleDarkMode}
+            allWords={allWords}
+            isAdmin={isAdmin}
+            onOpenAddWord={() => {
+              setWordToEdit(null);
+              setIsAddWordOpen(true);
+            }}
           />
         )}
 
@@ -193,6 +281,7 @@ export default function App() {
             onToggleImportant={handleToggleImportant}
             onOpenWordInViewer={handleJumpToWord}
             onStartRevision={() => handleStartRevision('important')}
+            allWords={allWords}
           />
         )}
 
@@ -202,6 +291,7 @@ export default function App() {
             onToggleFavorite={handleToggleFavorite}
             onOpenWordInViewer={handleJumpToWord}
             onStartRevision={() => handleStartRevision('favorites')}
+            allWords={allWords}
           />
         )}
 
@@ -212,15 +302,22 @@ export default function App() {
             importantIds={importantIds}
             difficultIds={difficultIds}
             onStartRevision={handleStartRevision}
+            allWords={allWords}
           />
         )}
 
-        {activeTab === 'quiz' && <Quiz onUpdateQuizStats={handleUpdateQuizStats} />}
+        {activeTab === 'quiz' && (
+          <Quiz
+            onUpdateQuizStats={handleUpdateQuizStats}
+            allWords={allWords}
+          />
+        )}
 
         {activeTab === 'search' && (
           <SearchModal
             isInline={true}
             onSelectWord={handleJumpToWord}
+            allWords={allWords}
           />
         )}
 
@@ -234,6 +331,7 @@ export default function App() {
             todayLearnedCount={todayLearnedCount}
             quizStats={quizStats}
             onNavigate={(tab) => setActiveTab(tab)}
+            totalWordsCount={allWords.length}
           />
         )}
 
@@ -242,6 +340,16 @@ export default function App() {
             settings={settings}
             onUpdateSettings={handleUpdateSettings}
             onRequestReset={() => setIsResetModalOpen(true)}
+            isAdmin={isAdmin}
+            customWordsCount={customWords.length}
+            onOpenAdminAuth={() => setIsAdminAuthOpen(true)}
+            onOpenAddWord={() => {
+              setWordToEdit(null);
+              setIsAddWordOpen(true);
+            }}
+            onOpenManageCustomWords={() => setIsManageWordsOpen(true)}
+            onOpenChangePin={() => setIsChangePinOpen(true)}
+            onLockAdmin={handleLockAdmin}
           />
         )}
       </main>
@@ -264,6 +372,7 @@ export default function App() {
         isOpen={isSearchOpen}
         onClose={() => setIsSearchOpen(false)}
         onSelectWord={handleJumpToWord}
+        allWords={allWords}
       />
 
       {/* Reset Confirmation Dialog */}
@@ -276,6 +385,56 @@ export default function App() {
         onConfirm={handleResetProgress}
         onCancel={() => setIsResetModalOpen(false)}
       />
+
+      {/* Admin Authentication Modal */}
+      <AdminAuthModal
+        isOpen={isAdminAuthOpen}
+        onClose={() => setIsAdminAuthOpen(false)}
+        onSuccess={() => setIsAdmin(true)}
+        currentPin={adminPin}
+      />
+
+      {/* Admin Add / Edit Word Modal */}
+      <AddWordModal
+        isOpen={isAddWordOpen}
+        onClose={() => {
+          setIsAddWordOpen(false);
+          setWordToEdit(null);
+        }}
+        onSaveWord={handleSaveWord}
+        existingWords={allWords}
+        editWord={wordToEdit}
+      />
+
+      {/* Admin Manage Custom Words Modal */}
+      <ManageCustomWordsModal
+        isOpen={isManageWordsOpen}
+        onClose={() => setIsManageWordsOpen(false)}
+        customWords={customWords}
+        onOpenAddModal={() => {
+          setWordToEdit(null);
+          setIsAddWordOpen(true);
+        }}
+        onEditWord={handleEditWord}
+        onDeleteWord={handleDeleteCustomWord}
+        onSelectWordToView={handleJumpToWord}
+      />
+
+      {/* Change Admin Passcode Modal */}
+      <ChangeAdminPasscodeModal
+        isOpen={isChangePinOpen}
+        onClose={() => setIsChangePinOpen(false)}
+        currentPin={adminPin}
+        onUpdatePin={(newPin) => setAdminPin(newPin)}
+      />
+
+      {/* Floating Action Toast Notification */}
+      {toastMessage && (
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-2xl bg-stone-900/95 dark:bg-stone-100/95 text-white dark:text-stone-900 text-xs font-bold shadow-2xl backdrop-blur-md flex items-center gap-2 border border-stone-700/60 dark:border-stone-300/60 pointer-events-none animate-in fade-in slide-in-from-top-3 duration-200">
+          <Check className="w-4 h-4 text-emerald-400 dark:text-emerald-600 shrink-0" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
     </div>
   );
 }

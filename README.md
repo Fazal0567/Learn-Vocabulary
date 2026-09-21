@@ -67,6 +67,21 @@ A modern, mobile-first, reels-style vocabulary learning web application designed
 - **Quick Header Toggles**: Switch themes directly from the header on both the Home and Learn screens, or via Settings.
 - **Performance Settings**: Ability to toggle transition animations for lower-power devices.
 
+### 9. Admin Word Management (Restricted Access)
+- **Role-Based Protection**: Only authenticated administrators can add, edit, or delete custom vocabulary words.
+- **Secure Passcode Authentication**: Protected by an administrative passcode (default: `admin123`, customizable in Settings).
+- **Comprehensive Word Authoring**:
+  - English word with automated audio pronunciation tester
+  - Hindi translation in Devanagari script
+  - English definition
+  - Part of speech selector (`n.`, `v.`, `adj.`, `adv.`, `phr.`, `idiom`, or custom)
+  - Synonyms and antonyms tagging
+  - Contextual example sentence
+  - Custom vocabulary and usage tips
+- **Duplicate Word Prevention**: Real-time checking alerts the admin if a word already exists in the dictionary.
+- **Word Manager Portal**: Dedicated admin modal to search, view, edit, delete, or export custom-added words as JSON.
+- **Seamless Integration**: Newly added words automatically appear across the Reels feed, Search index, Revision decks, and Practice quizzes.
+
 ---
 
 ## 📱 Application Views
