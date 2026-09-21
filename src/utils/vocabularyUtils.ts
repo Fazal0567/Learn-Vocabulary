@@ -18,6 +18,8 @@ export function filterVocabulary(
   const difficultSet = new Set(difficultIds);
 
   switch (filter) {
+    case 'custom':
+      return vocabularyList.filter(w => w.isCustom || w.id > 1000);
     case 'unlearned':
       return vocabularyList.filter(w => !learnedSet.has(w.id));
     case 'important':

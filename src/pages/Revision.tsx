@@ -8,6 +8,7 @@ import {
   Play,
   ArrowRight,
   BookOpen,
+  Sparkles,
 } from 'lucide-react';
 import { RevisionFilter, WordItem } from '../types';
 import { filterVocabulary } from '../utils/vocabularyUtils';
@@ -32,12 +33,14 @@ export const Revision: React.FC<RevisionProps> = ({
   const [selectedFilter, setSelectedFilter] = useState<RevisionFilter>('unlearned');
 
   const total = allWords?.length || 1000;
+  const customCount = allWords?.filter((w) => w.isCustom || w.id > 1000).length || 0;
   const counts = {
     all: total,
     unlearned: Math.max(0, total - learnedIds.length),
     important: importantIds.length,
     favorites: favoriteIds.length,
     difficult: difficultIds.length,
+    custom: customCount,
   };
 
   const previewWords = useMemo(() => {
@@ -45,6 +48,18 @@ export const Revision: React.FC<RevisionProps> = ({
   }, [selectedFilter, learnedIds, favoriteIds, importantIds, difficultIds, allWords]);
 
   const filterCards = [
+    ...(customCount > 0
+      ? [
+          {
+            id: 'custom' as RevisionFilter,
+            label: `Newly Added (${customCount})`,
+            desc: 'Words newly added and synced live by the Teacher/Admin',
+            count: counts.custom,
+            icon: Sparkles,
+            color: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/50 dark:text-emerald-400',
+          },
+        ]
+      : []),
     {
       id: 'all' as RevisionFilter,
       label: `All ${total} Words`,

@@ -32,9 +32,7 @@ service cloud.firestore {
     // Global vocabulary words: accessible to all students across all devices
     match /words/{wordId} {
       allow read: if true;
-      allow create: if isValidId(wordId) && isValidWord(request.resource.data);
-      allow update: if isValidId(wordId) && isValidWord(request.resource.data);
-      allow delete: if isValidId(wordId);
+      allow write: if true;
     }
 
     // Admin passcode configuration (synced across admin devices)

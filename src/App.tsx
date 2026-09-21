@@ -32,6 +32,7 @@ import {
 } from './lib/indexedDb';
 import {
   subscribeToWords,
+  fetchWordsFromFirestore,
   syncWordToFirestore,
   deleteWordFromFirestore,
   deleteAllCustomWordsFromFirestore,
@@ -135,8 +136,14 @@ export default function App() {
       }
     });
 
-    // 2. Real-time subscription to global vocabulary words in Firestore
-    // Firestore words are the absolute cloud source of truth for custom/added words
+    // 2. Immediate direct fetch + real-time subscription to global vocabulary words in Firestore
+    fetchWordsFromFirestore().then((initialWords) => {
+      if (initialWords && initialWords.length > 0) {
+        setCustomWords(initialWords);
+        setIsCloudSynced(true);
+      }
+    });
+
     const unsubscribeWords = subscribeToWords((firestoreWords) => {
       setIsCloudSynced(true);
       // Directly sync custom words with Firestore truth (removes deleted words automatically)

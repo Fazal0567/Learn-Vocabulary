@@ -63,6 +63,8 @@ export const Home: React.FC<HomeProps> = ({
   const wordsList = allWords || VOCABULARY_DATA;
   const currentWord = wordsList.find(w => w.id === currentWordId) || wordsList[0];
   const totalWords = wordsList.length;
+  const customWords = wordsList.filter((w) => w.isCustom || w.id > 1000);
+  const latestCustom = customWords.length > 0 ? customWords[customWords.length - 1] : null;
   const overallPercentage = Math.round((learnedCount / totalWords) * 100);
   const dailyPercentage = Math.min(100, Math.round((todayLearnedCount / dailyGoal) * 100));
 
@@ -135,6 +137,35 @@ export const Home: React.FC<HomeProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Newly Added Custom Vocabulary Card (Synced live from Cloud across devices) */}
+      {latestCustom && (
+        <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/60 shadow-sm flex items-center justify-between gap-3">
+          <div className="space-y-0.5 flex-1 min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-200/70 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-300">
+                ✨ Cloud Synced ({customWords.length} New)
+              </span>
+            </div>
+            <h4 className="text-sm font-extrabold text-stone-900 dark:text-stone-100 truncate">
+              {latestCustom.word} <span className="font-normal text-xs text-stone-500">#{latestCustom.id}</span>
+            </h4>
+            <p className="text-xs text-emerald-800 dark:text-emerald-300 font-medium truncate font-['Noto_Sans_Devanagari']">
+              {latestCustom.meaningHindi}
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              onSelectWord(latestCustom.id);
+              onNavigate('learn');
+            }}
+            className="shrink-0 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition-all flex items-center gap-1 cursor-pointer"
+          >
+            <span>Learn</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Today's Goal Section */}
       <div className="p-4 rounded-2xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 shadow-sm">

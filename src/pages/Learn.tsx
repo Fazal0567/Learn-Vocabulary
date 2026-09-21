@@ -136,6 +136,7 @@ export const Learn: React.FC<LearnProps> = ({
 
   const filterLabels: Record<RevisionFilter, string> = {
     all: `All ${allWords?.length || 1000} Words`,
+    custom: 'Newly Added',
     unlearned: 'Unlearned',
     important: 'Starred Words',
     favorites: 'Favorites',

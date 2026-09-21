@@ -40,7 +40,7 @@ export const googleProvider = new GoogleAuthProvider();
 // Test connection on boot
 export async function testFirestoreConnection() {
   try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
+    await getDocFromServer(doc(db, 'config', 'adminPasscode'));
   } catch (error) {
     if (error instanceof Error && error.message.includes('the client is offline')) {
       console.warn('Firebase client offline, utilizing cached state.');
@@ -49,25 +49,55 @@ export async function testFirestoreConnection() {
 }
 
 /**
+ * Direct fetch of global vocabulary words from Firestore
+ */
+export async function fetchWordsFromFirestore(): Promise<WordItem[]> {
+  try {
+    const wordsRef = collection(db, 'words');
+    const snapshot = await getDocs(wordsRef);
+    const words: WordItem[] = [];
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      words.push({
+        id: typeof data.id === 'number' ? data.id : parseInt(data.id || docSnap.id, 10) || 1001,
+        firestoreDocId: docSnap.id,
+        word: data.word || '',
+        pos: data.pos || undefined,
+        meaningHindi: data.meaningHindi || '',
+        meaningEnglish: data.meaningEnglish || '',
+        synonyms: Array.isArray(data.synonyms) ? data.synonyms : [],
+        antonyms: Array.isArray(data.antonyms) ? data.antonyms : [],
+        example: data.example || '',
+        customTip: data.customTip || undefined,
+        isCustom: true,
+      });
+    });
+    return words.sort((a, b) => a.id - b.id);
+  } catch (err) {
+    console.warn('Direct fetch from Firestore error:', err);
+    return [];
+  }
+}
+
+/**
  * Real-time listener for global vocabulary words added by the Admin
  */
 export function subscribeToWords(onWordsUpdated: (words: WordItem[]) => void) {
   const wordsRef = collection(db, 'words');
-  const q = query(wordsRef, orderBy('id', 'asc'));
 
   return onSnapshot(
-    q,
+    wordsRef,
     (snapshot) => {
       const words: WordItem[] = [];
       snapshot.forEach((docSnap) => {
         const data = docSnap.data();
         words.push({
-          id: data.id,
+          id: typeof data.id === 'number' ? data.id : parseInt(data.id || docSnap.id, 10) || 1001,
           firestoreDocId: docSnap.id,
-          word: data.word,
+          word: data.word || '',
           pos: data.pos || undefined,
-          meaningHindi: data.meaningHindi,
-          meaningEnglish: data.meaningEnglish,
+          meaningHindi: data.meaningHindi || '',
+          meaningEnglish: data.meaningEnglish || '',
           synonyms: Array.isArray(data.synonyms) ? data.synonyms : [],
           antonyms: Array.isArray(data.antonyms) ? data.antonyms : [],
           example: data.example || '',
@@ -75,6 +105,7 @@ export function subscribeToWords(onWordsUpdated: (words: WordItem[]) => void) {
           isCustom: true,
         });
       });
+      words.sort((a, b) => a.id - b.id);
       onWordsUpdated(words);
     },
     (error) => {

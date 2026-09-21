@@ -32,6 +32,10 @@ export const SearchModal: React.FC<SearchModalProps> = ({
     return searchVocabulary(query, allWords);
   }, [query, allWords]);
 
+  const customWords = useMemo(() => {
+    return (allWords || []).filter((w) => w.isCustom || w.id > 1000);
+  }, [allWords]);
+
   if (!isOpen && !isInline) return null;
 
   const content = (
@@ -68,14 +72,42 @@ export const SearchModal: React.FC<SearchModalProps> = ({
       {/* Results List */}
       <div className="flex-1 overflow-y-auto p-2 sm:p-3 divide-y divide-stone-100 dark:divide-stone-800/60">
         {query.trim() === '' ? (
-          <div className="p-8 text-center text-stone-400 text-sm">
-            <Search className="w-10 h-10 mx-auto mb-2 opacity-30 text-amber-500" />
-            <p className="font-semibold text-stone-600 dark:text-stone-300">
-              Instant Vocabulary Search
-            </p>
-            <p className="text-xs mt-1">
-              Type in English or Hindi (e.g., "abandon", "त्याग", "abate", "scarce")
-            </p>
+          <div className="p-4 sm:p-6 text-center text-stone-400 text-sm space-y-4">
+            <div>
+              <Search className="w-10 h-10 mx-auto mb-2 opacity-30 text-amber-500" />
+              <p className="font-semibold text-stone-600 dark:text-stone-300">
+                Instant Vocabulary Search
+              </p>
+              <p className="text-xs mt-1 text-stone-400">
+                Type in English or Hindi (e.g., "abandon", "त्याग", "abate", "scarce")
+              </p>
+            </div>
+
+            {customWords.length > 0 && (
+              <div className="text-left pt-3 border-t border-stone-100 dark:border-stone-800">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 mb-2 flex items-center gap-1.5">
+                  <span>✨ Newly Added by Admin ({customWords.length})</span>
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {customWords.map((cw) => (
+                    <button
+                      key={cw.id}
+                      onClick={() => {
+                        onSelectWord(cw.id);
+                        if (onClose) onClose();
+                      }}
+                      className="px-2.5 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 border border-emerald-200/80 dark:border-emerald-800/60 text-xs font-semibold text-emerald-800 dark:text-emerald-300 transition-colors flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <span className="font-mono text-[10px] opacity-75">#{cw.id}</span>
+                      <span className="font-bold">{cw.word}</span>
+                      <span className="text-[11px] text-stone-500 dark:text-stone-400 font-['Noto_Sans_Devanagari']">
+                        ({cw.meaningHindi})
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         ) : results.length === 0 ? (
           <div className="p-8 text-center text-stone-500 text-sm">
@@ -100,6 +132,11 @@ export const SearchModal: React.FC<SearchModalProps> = ({
                   <span className="font-bold text-stone-900 dark:text-stone-100 text-base group-hover:text-amber-600 dark:group-hover:text-amber-400">
                     {word.word}
                   </span>
+                  {(word.isCustom || word.id > 1000) && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300">
+                      New
+                    </span>
+                  )}
                   {word.pos && (
                     <span className="text-[10px] px-1.5 py-0.2 rounded bg-stone-100 dark:bg-stone-800 text-stone-500">
                       {word.pos}

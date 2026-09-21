@@ -23,7 +23,7 @@ export type NavigationTab =
   | 'progress'
   | 'settings';
 
-export type RevisionFilter = 'all' | 'unlearned' | 'important' | 'favorites' | 'difficult';
+export type RevisionFilter = 'all' | 'unlearned' | 'important' | 'favorites' | 'difficult' | 'custom';
 
 export interface UserSettings {
   darkMode: boolean;
