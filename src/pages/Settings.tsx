@@ -13,6 +13,8 @@ import {
   KeyRound,
   BookPlus,
   Cloud,
+  Wifi,
+  WifiOff,
 } from 'lucide-react';
 import { UserSettings } from '../types';
 
@@ -29,6 +31,10 @@ interface SettingsProps {
   onLockAdmin?: () => void;
   currentUserEmail?: string | null;
   isCloudSynced?: boolean;
+  isOnline?: boolean;
+  offlineCacheCount?: number;
+  lastCacheTime?: string | null;
+  onRefreshCache?: () => void;
 }
 
 export const Settings: React.FC<SettingsProps> = ({
@@ -44,6 +50,10 @@ export const Settings: React.FC<SettingsProps> = ({
   onLockAdmin,
   currentUserEmail,
   isCloudSynced = true,
+  isOnline = true,
+  offlineCacheCount = 0,
+  lastCacheTime = null,
+  onRefreshCache,
 }) => {
   const [customGoalInput, setCustomGoalInput] = useState('');
   const [isCustomMode, setIsCustomMode] = useState(false);
@@ -393,6 +403,43 @@ export const Settings: React.FC<SettingsProps> = ({
             </button>
           </div>
         )}
+      </div>
+
+      {/* Network Status & Automatic Offline Cache (Only Online / Offline Logo & Auto Status) */}
+      <div className="p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 shadow-xs flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div
+            className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${
+              isOnline
+                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+            }`}
+          >
+            {isOnline ? <Wifi className="w-5 h-5" /> : <WifiOff className="w-5 h-5" />}
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-stone-900 dark:text-stone-100">
+                {isOnline ? 'Online' : 'Offline'}
+              </span>
+              <span
+                className={`text-[10px] font-bold px-2 py-0.2 rounded-full border flex items-center gap-1 ${
+                  isOnline
+                    ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'
+                    : 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800'
+                }`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+                <span>{isOnline ? 'Auto-Synced' : 'Auto-Cached'}</span>
+              </span>
+            </div>
+            <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5">
+              {isOnline
+                ? 'Vocabulary words automatically cached in IndexedDB for offline use.'
+                : 'Active offline mode. Stored in IndexedDB for uninterrupted learning.'}
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Reset Progress Section */}

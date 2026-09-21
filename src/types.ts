@@ -9,6 +9,7 @@ export interface WordItem {
   example: string;
   isCustom?: boolean;
   customTip?: string;
+  firestoreDocId?: string;
 }
 
 export type NavigationTab =

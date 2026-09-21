@@ -7,6 +7,8 @@ import {
   deleteDoc,
   onSnapshot,
   query,
+  where,
+  getDocs,
   orderBy,
   getDocFromServer,
 } from 'firebase/firestore';
@@ -61,6 +63,7 @@ export function subscribeToWords(onWordsUpdated: (words: WordItem[]) => void) {
         const data = docSnap.data();
         words.push({
           id: data.id,
+          firestoreDocId: docSnap.id,
           word: data.word,
           pos: data.pos || undefined,
           meaningHindi: data.meaningHindi,
@@ -106,11 +109,44 @@ export async function syncWordToFirestore(wordItem: WordItem, authorEmail?: stri
 }
 
 /**
- * Delete a vocabulary word from global Firestore
+ * Delete a vocabulary word from global Firestore (by docId, string ID, and queried ID)
  */
-export async function deleteWordFromFirestore(wordId: number) {
-  const docRef = doc(db, 'words', String(wordId));
-  await deleteDoc(docRef);
+export async function deleteWordFromFirestore(wordId: number, docId?: string): Promise<void> {
+  // 1. Delete by direct document ID if known
+  if (docId) {
+    try {
+      await deleteDoc(doc(db, 'words', docId));
+    } catch (e) {
+      console.warn('Direct docId delete error:', e);
+    }
+  }
+
+  // 2. Delete by string wordId
+  try {
+    await deleteDoc(doc(db, 'words', String(wordId)));
+  } catch (e) {
+    console.warn('Direct stringId delete error:', e);
+  }
+
+  // 3. Search and delete any remaining document matching this id
+  try {
+    const q = query(collection(db, 'words'), where('id', '==', wordId));
+    const snap = await getDocs(q);
+    for (const d of snap.docs) {
+      await deleteDoc(d.ref);
+    }
+  } catch (e) {
+    console.warn('Query-based delete error:', e);
+  }
+}
+
+/**
+ * Wipe all custom words from Firestore (resets back to pristine 1,000 master words)
+ */
+export async function deleteAllCustomWordsFromFirestore(): Promise<void> {
+  const snap = await getDocs(collection(db, 'words'));
+  const promises = snap.docs.map((d) => deleteDoc(d.ref));
+  await Promise.all(promises);
 }
 
 /**

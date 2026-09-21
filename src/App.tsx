@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Check, CloudCheck, Cloud } from 'lucide-react';
+import { Check, CloudCheck, Cloud, Wifi, WifiOff } from 'lucide-react';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { NavigationTab, RevisionFilter, UserSettings, WordItem } from './types';
 import { VOCABULARY_DATA } from './data/vocabulary';
@@ -24,9 +24,17 @@ import { AddWordModal } from './components/AddWordModal';
 import { ManageCustomWordsModal } from './components/ManageCustomWordsModal';
 import { ChangeAdminPasscodeModal } from './components/ChangeAdminPasscodeModal';
 import {
+  cacheWordsToIndexedDB,
+  loadWordsFromIndexedDB,
+  saveSingleWordToIndexedDB,
+  deleteWordFromIndexedDB,
+  getOfflineCacheStats,
+} from './lib/indexedDb';
+import {
   subscribeToWords,
   syncWordToFirestore,
   deleteWordFromFirestore,
+  deleteAllCustomWordsFromFirestore,
   testFirestoreConnection,
   auth,
   logoutUser,
@@ -44,6 +52,12 @@ export default function App() {
 
   // Dynamic Vocabulary: Custom Admin Words + Master Dictionary
   const [customWords, setCustomWords] = useLocalStorage<WordItem[]>('vocab_customWords', []);
+  const [deletedWordIds, setDeletedWordIds] = useLocalStorage<number[]>('vocab_deletedWordIds', []);
+
+  // Offline Caching & Connection State
+  const [isOnline, setIsOnline] = useState<boolean>(typeof navigator !== 'undefined' ? navigator.onLine : true);
+  const [offlineCacheCount, setOfflineCacheCount] = useState<number>(0);
+  const [lastCacheTime, setLastCacheTime] = useState<string | null>(null);
 
   // Admin Access & Controls (Restricted: Only Admin can add words)
   const [isAdmin, setIsAdmin] = useLocalStorage<boolean>('vocab_isAdmin', false);
@@ -66,6 +80,48 @@ export default function App() {
     }, 3000);
   };
 
+  // Online / Offline Connection Listener with Auto-Caching
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      showToast('Online: Live cloud sync active.');
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+      showToast('Offline Mode: Auto-cached in IndexedDB.');
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Initialize IndexedDB offline cache on startup
+  useEffect(() => {
+    const initOfflineStorage = async () => {
+      try {
+        const cachedWords = await loadWordsFromIndexedDB();
+        if (!cachedWords || cachedWords.length === 0) {
+          // Prime IndexedDB with full 1,000 master vocabulary words for 100% offline access
+          await cacheWordsToIndexedDB(VOCABULARY_DATA);
+        }
+
+        // Fetch cache stats
+        const stats = await getOfflineCacheStats();
+        setOfflineCacheCount(stats.count > 0 ? stats.count : VOCABULARY_DATA.length);
+        setLastCacheTime(stats.lastSync);
+      } catch (err) {
+        console.warn('IndexedDB initial setup note:', err);
+      }
+    };
+
+    initOfflineStorage();
+  }, []);
+
   // Firebase Initialization, Real-time Cloud Word Sync & Auth Tracking
   useEffect(() => {
     testFirestoreConnection();
@@ -80,18 +136,11 @@ export default function App() {
     });
 
     // 2. Real-time subscription to global vocabulary words in Firestore
+    // Firestore words are the absolute cloud source of truth for custom/added words
     const unsubscribeWords = subscribeToWords((firestoreWords) => {
       setIsCloudSynced(true);
-      if (firestoreWords && firestoreWords.length > 0) {
-        setCustomWords((localWords) => {
-          const wordsMap = new Map<number, WordItem>();
-          // Existing local words
-          localWords.forEach((w) => wordsMap.set(w.id, w));
-          // Firestore words are the universal source of truth
-          firestoreWords.forEach((w) => wordsMap.set(w.id, w));
-          return Array.from(wordsMap.values()).sort((a, b) => a.id - b.id);
-        });
-      }
+      // Directly sync custom words with Firestore truth (removes deleted words automatically)
+      setCustomWords(firestoreWords || []);
     });
 
     // 3. Real-time subscription to admin passcode configuration from Firestore
@@ -108,10 +157,46 @@ export default function App() {
     };
   }, []);
 
-  // Combined Reactive Vocabulary
+  // Combined Reactive Vocabulary: master dictionary + custom words overrides - deleted words
   const allWords = useMemo(() => {
-    return [...VOCABULARY_DATA, ...customWords];
-  }, [customWords]);
+    const deletedSet = new Set(deletedWordIds);
+    const customMap = new Map<number, WordItem>();
+    customWords.forEach((w) => customMap.set(w.id, w));
+
+    const list: WordItem[] = [];
+    // 1. Master words (with admin edits taking precedence)
+    for (const item of VOCABULARY_DATA) {
+      if (deletedSet.has(item.id)) continue;
+      if (customMap.has(item.id)) {
+        list.push(customMap.get(item.id)!);
+        customMap.delete(item.id);
+      } else {
+        list.push(item);
+      }
+    }
+    // 2. Any additional custom words
+    for (const item of customMap.values()) {
+      if (!deletedSet.has(item.id)) {
+        list.push(item);
+      }
+    }
+    return list.sort((a, b) => a.id - b.id);
+  }, [customWords, deletedWordIds]);
+
+  // Automatic IndexedDB Cache: Runs automatically in background whenever vocabulary updates
+  useEffect(() => {
+    if (allWords.length === 0) return;
+    const timer = setTimeout(() => {
+      cacheWordsToIndexedDB(allWords)
+        .then(() => {
+          setOfflineCacheCount(allWords.length);
+          setLastCacheTime(new Date().toISOString());
+        })
+        .catch((e) => console.warn('Auto cache to IndexedDB:', e));
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [allWords]);
 
   // Persistent User Data (LocalStorage)
   const [currentWordId, setCurrentWordId] = useLocalStorage<number>('vocab_currentWord', 1);
@@ -238,9 +323,21 @@ export default function App() {
         id: editId,
         isCustom: true,
       };
-      setCustomWords((prev) =>
-        prev.map((w) => (w.id === editId ? updatedWord : w))
-      );
+      setCustomWords((prev) => {
+        const idx = prev.findIndex((w) => w.id === editId);
+        if (idx >= 0) {
+          const next = [...prev];
+          next[idx] = updatedWord;
+          return next;
+        }
+        return [...prev, updatedWord];
+      });
+      setDeletedWordIds((prev) => prev.filter((id) => id !== editId));
+
+      // Immediately cache to local IndexedDB
+      saveSingleWordToIndexedDB(updatedWord).catch(console.warn);
+      setLastCacheTime(new Date().toISOString());
+
       showToast(`Word "${wordData.word}" updated! Syncing to cloud...`);
       try {
         await syncWordToFirestore(updatedWord, currentUserEmail || 'admin');
@@ -250,13 +347,20 @@ export default function App() {
       }
     } else {
       const maxId = allWords.reduce((max, w) => Math.max(max, w.id), 0);
-      const newId = maxId + 1;
+      const newId = Math.max(maxId + 1, 1001);
       const newWord: WordItem = {
         ...wordData,
         id: newId,
         isCustom: true,
       };
       setCustomWords((prev) => [...prev, newWord]);
+      setDeletedWordIds((prev) => prev.filter((id) => id !== newId));
+
+      // Immediately cache to local IndexedDB
+      saveSingleWordToIndexedDB(newWord).catch(console.warn);
+      setOfflineCacheCount((c) => c + 1);
+      setLastCacheTime(new Date().toISOString());
+
       showToast(`Word "${newWord.word}" added! Syncing to cloud...`);
       try {
         await syncWordToFirestore(newWord, currentUserEmail || 'admin');
@@ -264,13 +368,18 @@ export default function App() {
       } catch (err) {
         console.error('Failed to sync new word to Firestore:', err);
       }
-      // Note: User's current reading position (currentWordId) and tab remain strictly untouched
     }
   };
 
-  const handleDeleteCustomWord = async (id: number) => {
-    const deletedWord = customWords.find((w) => w.id === id);
+  const handleDeleteWord = async (id: number) => {
+    const deletedWord = allWords.find((w) => w.id === id);
+    const wordTitle = deletedWord?.word || `#${id}`;
+
+    // 1. Remove from customWords and mark in deletedWordIds
     setCustomWords((prev) => prev.filter((w) => w.id !== id));
+    setDeletedWordIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+
+    // 2. Clean up user progress markers
     setLearnedIds((prev) => prev.filter((itemId) => itemId !== id));
     setFavoriteIds((prev) => prev.filter((itemId) => itemId !== id));
     setImportantIds((prev) => prev.filter((itemId) => itemId !== id));
@@ -278,11 +387,39 @@ export default function App() {
     if (currentWordId === id) {
       setCurrentWordId(1);
     }
-    showToast(`Word "${deletedWord?.word || id}" deleted.`);
+
+    // 3. Delete from local IndexedDB cache
+    deleteWordFromIndexedDB(id).catch(console.warn);
+    setOfflineCacheCount((c) => Math.max(0, c - 1));
+
+    showToast(`Word "${wordTitle}" deleted.`);
     try {
-      await deleteWordFromFirestore(id);
+      await deleteWordFromFirestore(id, deletedWord?.firestoreDocId);
     } catch (err) {
       console.error('Failed to delete word from Firestore:', err);
+    }
+  };
+
+  const handleDeleteAllCustomWords = async () => {
+    // 1. Immediately wipe local custom words
+    setCustomWords([]);
+
+    // 2. Refresh local IndexedDB cache with clean 1,000 master words
+    try {
+      await cacheWordsToIndexedDB(VOCABULARY_DATA);
+      setOfflineCacheCount(VOCABULARY_DATA.length);
+      setLastCacheTime(new Date().toISOString());
+    } catch (e) {
+      console.warn('Cache re-seed note:', e);
+    }
+
+    showToast('Deleting all custom words from cloud...');
+    try {
+      await deleteAllCustomWordsFromFirestore();
+      showToast('All custom words cleared! Pristine 1,000 dictionary active.');
+    } catch (err) {
+      console.error('Failed to delete all custom words from Firestore:', err);
+      showToast('Local custom words cleared.');
     }
   };
 
@@ -303,6 +440,24 @@ export default function App() {
 
   return (
     <div className="w-screen h-[100dvh] flex flex-col bg-stone-100 dark:bg-stone-950 text-stone-900 dark:text-stone-100 overflow-hidden font-['Plus_Jakarta_Sans',sans-serif]">
+      {/* Network Status Corner Icon (Shows Online / Offline logo) */}
+      <div
+        title={isOnline ? 'Online (Auto-synced)' : 'Offline (Auto-cached in IndexedDB)'}
+        className="absolute top-2.5 left-3 z-40 px-2 py-1 rounded-full bg-white/90 dark:bg-stone-900/90 backdrop-blur-md border border-stone-200/80 dark:border-stone-800/80 shadow-xs flex items-center gap-1.5 text-[11px] font-semibold text-stone-700 dark:text-stone-300 pointer-events-auto transition-all"
+      >
+        {isOnline ? (
+          <>
+            <Wifi className="w-3.5 h-3.5 text-emerald-500" />
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+          </>
+        ) : (
+          <>
+            <WifiOff className="w-3.5 h-3.5 text-amber-500" />
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+          </>
+        )}
+      </div>
+
       {/* Main Content Area */}
       <main className="flex-1 w-full overflow-hidden relative">
         {activeTab === 'home' && (
@@ -437,6 +592,9 @@ export default function App() {
             onLockAdmin={handleLockAdmin}
             currentUserEmail={currentUserEmail}
             isCloudSynced={isCloudSynced}
+            isOnline={isOnline}
+            offlineCacheCount={offlineCacheCount || allWords.length}
+            lastCacheTime={lastCacheTime}
           />
         )}
       </main>
@@ -501,13 +659,15 @@ export default function App() {
       <ManageCustomWordsModal
         isOpen={isManageWordsOpen}
         onClose={() => setIsManageWordsOpen(false)}
+        allWords={allWords}
         customWords={customWords}
         onOpenAddModal={() => {
           setWordToEdit(null);
           setIsAddWordOpen(true);
         }}
         onEditWord={handleEditWord}
-        onDeleteWord={handleDeleteCustomWord}
+        onDeleteWord={handleDeleteWord}
+        onDeleteAllCustomWords={handleDeleteAllCustomWords}
         onSelectWordToView={handleJumpToWord}
       />
 
