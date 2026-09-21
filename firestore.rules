@@ -1,0 +1,52 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default-deny catch all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == "fazalalicontribute@gmail.com" ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidWord(data) {
+      return data.keys().hasAll(['id', 'word', 'meaningHindi', 'meaningEnglish']) &&
+        data.id is number &&
+        data.word is string && data.word.size() > 0 && data.word.size() <= 100 &&
+        data.meaningHindi is string && data.meaningHindi.size() > 0 && data.meaningHindi.size() <= 300 &&
+        data.meaningEnglish is string && data.meaningEnglish.size() > 0 && data.meaningEnglish.size() <= 500;
+    }
+
+    // Global vocabulary words: accessible to all students across all devices
+    match /words/{wordId} {
+      allow read: if true;
+      allow create: if isSignedIn() && isValidId(wordId) && isValidWord(request.resource.data);
+      allow update: if isSignedIn() && isValidId(wordId) && isValidWord(request.resource.data);
+      allow delete: if isSignedIn() && isValidId(wordId);
+    }
+
+    // Admin passcode configuration (synced across admin devices)
+    match /config/{configId} {
+      allow read: if true;
+      allow write: if isSignedIn() && isValidId(configId);
+    }
+
+    // Admin authorization records
+    match /admins/{adminId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && isValidId(adminId);
+    }
+  }
+}

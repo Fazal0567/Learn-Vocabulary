@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { ShieldCheck, KeyRound, X, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { ShieldCheck, KeyRound, X, AlertCircle, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { loginAdminWithPasscode } from '../lib/firebase';
 
 interface AdminAuthModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (adminEmail?: string) => void;
   currentPin: string;
 }
 
@@ -17,20 +18,34 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
   const [pinInput, setPinInput] = useState('');
   const [error, setError] = useState('');
   const [showPin, setShowPin] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handlePinSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    if (pinInput.trim() === currentPin.trim()) {
+    if (!pinInput.trim()) {
+      setError('Please enter the admin passcode.');
+      return;
+    }
+
+    setIsVerifying(true);
+    try {
+      await loginAdminWithPasscode(pinInput, currentPin);
       setPinInput('');
       setError('');
-      onSuccess();
+      onSuccess('Admin');
       onClose();
-    } else {
-      setError('Incorrect admin passcode. Please try again.');
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'Incorrect passcode. Please check your admin passcode and try again.';
+      setError(message);
+    } finally {
+      setIsVerifying(false);
     }
   };
 
@@ -45,10 +60,10 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
             </div>
             <div>
               <h2 className="text-base font-bold text-stone-900 dark:text-stone-100">
-                Admin Authentication
+                Admin Verification
               </h2>
               <p className="text-[11px] text-stone-500 dark:text-stone-400">
-                Only verified admins can add new words
+                Enter your secret passcode to unlock admin access
               </p>
             </div>
           </div>
@@ -60,23 +75,31 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
           </button>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-3.5">
+        {/* Error Alert */}
+        {error && (
+          <div className="flex items-start gap-2 text-xs text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 p-3 rounded-xl border border-rose-200 dark:border-rose-900/40">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span className="leading-snug">{error}</span>
+          </div>
+        )}
+
+        {/* Passcode Form */}
+        <form onSubmit={handlePinSubmit} className="space-y-4">
           <div>
             <label className="block text-xs font-semibold text-stone-700 dark:text-stone-300 mb-1.5">
-              Enter Admin Passcode
+              Admin Passcode
             </label>
             <div className="relative">
               <KeyRound className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type={showPin ? 'text' : 'password'}
                 value={pinInput}
+                autoFocus
                 onChange={(e) => {
                   setPinInput(e.target.value);
                   if (error) setError('');
                 }}
-                placeholder="Enter passcode..."
-                autoFocus
+                placeholder="Enter secret passcode..."
                 className="w-full pl-9 pr-10 py-2.5 text-sm rounded-xl bg-stone-50 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 text-stone-900 dark:text-stone-100 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-all font-mono"
               />
               <button
@@ -87,34 +110,33 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
                 {showPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
+            <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-1.5">
+              Only authorized administrators can add or manage words.
+            </p>
           </div>
-
-          {error && (
-            <div className="flex items-center gap-1.5 text-xs text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 p-2.5 rounded-xl border border-rose-200 dark:border-rose-900/40">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
-
-          {/* Confidential Notice */}
-          <p className="text-[11px] text-stone-500 dark:text-stone-400 text-center">
-            Enter your secret administrator PIN to unlock word management privileges.
-          </p>
 
           <div className="flex gap-2 pt-1">
             <button
               type="button"
               onClick={onClose}
+              disabled={isVerifying}
               className="flex-1 py-2.5 px-3 rounded-xl border border-stone-200 dark:border-stone-700 text-xs font-semibold text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={!pinInput.trim()}
-              className="flex-1 py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold shadow-md active:scale-[0.98] transition-all"
+              disabled={!pinInput.trim() || isVerifying}
+              className="flex-1 py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold shadow-md active:scale-[0.98] transition-all flex items-center justify-center gap-1.5"
             >
-              Unlock Admin
+              {isVerifying ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Verifying...</span>
+                </>
+              ) : (
+                <span>Unlock Admin</span>
+              )}
             </button>
           </div>
         </form>
@@ -122,3 +144,4 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
     </div>
   );
 };
+

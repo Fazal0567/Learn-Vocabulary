@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Check } from 'lucide-react';
+import { Check, CloudCheck, Cloud } from 'lucide-react';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { NavigationTab, RevisionFilter, UserSettings, WordItem } from './types';
 import { VOCABULARY_DATA } from './data/vocabulary';
@@ -23,6 +23,17 @@ import { AdminAuthModal } from './components/AdminAuthModal';
 import { AddWordModal } from './components/AddWordModal';
 import { ManageCustomWordsModal } from './components/ManageCustomWordsModal';
 import { ChangeAdminPasscodeModal } from './components/ChangeAdminPasscodeModal';
+import {
+  subscribeToWords,
+  syncWordToFirestore,
+  deleteWordFromFirestore,
+  testFirestoreConnection,
+  auth,
+  logoutUser,
+  subscribeToAdminPasscode,
+  updateAdminPasscodeInFirestore,
+} from './lib/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 
 export default function App() {
   // Navigation State
@@ -45,6 +56,8 @@ export default function App() {
   const [isChangePinOpen, setIsChangePinOpen] = useState(false);
   const [wordToEdit, setWordToEdit] = useState<WordItem | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
+  const [isCloudSynced, setIsCloudSynced] = useState(false);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -52,6 +65,48 @@ export default function App() {
       setToastMessage(null);
     }, 3000);
   };
+
+  // Firebase Initialization, Real-time Cloud Word Sync & Auth Tracking
+  useEffect(() => {
+    testFirestoreConnection();
+
+    // 1. Listen to Firebase Auth state
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setCurrentUserEmail(user.email || 'Admin');
+      } else {
+        setCurrentUserEmail(null);
+      }
+    });
+
+    // 2. Real-time subscription to global vocabulary words in Firestore
+    const unsubscribeWords = subscribeToWords((firestoreWords) => {
+      setIsCloudSynced(true);
+      if (firestoreWords && firestoreWords.length > 0) {
+        setCustomWords((localWords) => {
+          const wordsMap = new Map<number, WordItem>();
+          // Existing local words
+          localWords.forEach((w) => wordsMap.set(w.id, w));
+          // Firestore words are the universal source of truth
+          firestoreWords.forEach((w) => wordsMap.set(w.id, w));
+          return Array.from(wordsMap.values()).sort((a, b) => a.id - b.id);
+        });
+      }
+    });
+
+    // 3. Real-time subscription to admin passcode configuration from Firestore
+    const unsubscribePasscode = subscribeToAdminPasscode((remotePasscode) => {
+      if (remotePasscode && remotePasscode.trim()) {
+        setAdminPin(remotePasscode.trim());
+      }
+    });
+
+    return () => {
+      unsubscribeAuth();
+      unsubscribeWords();
+      unsubscribePasscode();
+    };
+  }, []);
 
   // Combined Reactive Vocabulary
   const allWords = useMemo(() => {
@@ -176,12 +231,23 @@ export default function App() {
   };
 
   // Admin Actions (Strictly restricted to Admin mode)
-  const handleSaveWord = (wordData: Omit<WordItem, 'id'>, editId?: number) => {
+  const handleSaveWord = async (wordData: Omit<WordItem, 'id'>, editId?: number) => {
     if (editId) {
+      const updatedWord: WordItem = {
+        ...wordData,
+        id: editId,
+        isCustom: true,
+      };
       setCustomWords((prev) =>
-        prev.map((w) => (w.id === editId ? { ...w, ...wordData, id: editId, isCustom: true } : w))
+        prev.map((w) => (w.id === editId ? updatedWord : w))
       );
-      showToast(`Word "${wordData.word}" updated successfully!`);
+      showToast(`Word "${wordData.word}" updated! Syncing to cloud...`);
+      try {
+        await syncWordToFirestore(updatedWord, currentUserEmail || 'admin');
+        showToast(`Word "${wordData.word}" updated & synced for all users!`);
+      } catch (err) {
+        console.error('Failed to sync updated word to Firestore:', err);
+      }
     } else {
       const maxId = allWords.reduce((max, w) => Math.max(max, w.id), 0);
       const newId = maxId + 1;
@@ -191,12 +257,18 @@ export default function App() {
         isCustom: true,
       };
       setCustomWords((prev) => [...prev, newWord]);
-      showToast(`Word "${newWord.word}" added to catalog (Word #${newId})!`);
+      showToast(`Word "${newWord.word}" added! Syncing to cloud...`);
+      try {
+        await syncWordToFirestore(newWord, currentUserEmail || 'admin');
+        showToast(`Word "${newWord.word}" synced live across all devices!`);
+      } catch (err) {
+        console.error('Failed to sync new word to Firestore:', err);
+      }
       // Note: User's current reading position (currentWordId) and tab remain strictly untouched
     }
   };
 
-  const handleDeleteCustomWord = (id: number) => {
+  const handleDeleteCustomWord = async (id: number) => {
     const deletedWord = customWords.find((w) => w.id === id);
     setCustomWords((prev) => prev.filter((w) => w.id !== id));
     setLearnedIds((prev) => prev.filter((itemId) => itemId !== id));
@@ -206,7 +278,12 @@ export default function App() {
     if (currentWordId === id) {
       setCurrentWordId(1);
     }
-    showToast(`Word "${deletedWord?.word || id}" deleted successfully.`);
+    showToast(`Word "${deletedWord?.word || id}" deleted.`);
+    try {
+      await deleteWordFromFirestore(id);
+    } catch (err) {
+      console.error('Failed to delete word from Firestore:', err);
+    }
   };
 
   const handleEditWord = (word: WordItem) => {
@@ -214,8 +291,14 @@ export default function App() {
     setIsAddWordOpen(true);
   };
 
-  const handleLockAdmin = () => {
+  const handleLockAdmin = async () => {
     setIsAdmin(false);
+    try {
+      await logoutUser();
+    } catch {
+      // Ignore
+    }
+    showToast('Admin mode locked. Returned to student view.');
   };
 
   return (
@@ -245,6 +328,8 @@ export default function App() {
               setIsAddWordOpen(true);
             }}
             onOpenAdminAuth={() => setIsAdminAuthOpen(true)}
+            currentUserEmail={currentUserEmail}
+            isCloudSynced={isCloudSynced}
           />
         )}
 
@@ -350,6 +435,8 @@ export default function App() {
             onOpenManageCustomWords={() => setIsManageWordsOpen(true)}
             onOpenChangePin={() => setIsChangePinOpen(true)}
             onLockAdmin={handleLockAdmin}
+            currentUserEmail={currentUserEmail}
+            isCloudSynced={isCloudSynced}
           />
         )}
       </main>
@@ -390,7 +477,11 @@ export default function App() {
       <AdminAuthModal
         isOpen={isAdminAuthOpen}
         onClose={() => setIsAdminAuthOpen(false)}
-        onSuccess={() => setIsAdmin(true)}
+        onSuccess={(email) => {
+          setIsAdmin(true);
+          if (email) setCurrentUserEmail(email);
+          showToast('Admin privileges unlocked successfully!');
+        }}
         currentPin={adminPin}
       />
 
@@ -425,7 +516,15 @@ export default function App() {
         isOpen={isChangePinOpen}
         onClose={() => setIsChangePinOpen(false)}
         currentPin={adminPin}
-        onUpdatePin={(newPin) => setAdminPin(newPin)}
+        onUpdatePin={async (newPin) => {
+          setAdminPin(newPin);
+          showToast('Passcode updated and synced to cloud!');
+          try {
+            await updateAdminPasscodeInFirestore(newPin);
+          } catch (err) {
+            console.error('Failed to sync passcode to Firestore:', err);
+          }
+        }}
       />
 
       {/* Floating Action Toast Notification */}

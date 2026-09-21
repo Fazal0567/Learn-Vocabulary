@@ -1,0 +1,96 @@
+{
+  "entities": {
+    "Word": {
+      "title": "Word",
+      "description": "A vocabulary word entry added by an administrator, accessible to all learners globally",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "number",
+          "description": "Unique numeric identifier for ordering"
+        },
+        "word": {
+          "type": "string",
+          "description": "The English vocabulary word",
+          "maxLength": 100
+        },
+        "pos": {
+          "type": "string",
+          "description": "Part of speech (e.g. noun, verb, adj)",
+          "maxLength": 50
+        },
+        "meaningHindi": {
+          "type": "string",
+          "description": "The meaning of the word in Hindi Devanagari script",
+          "maxLength": 300
+        },
+        "meaningEnglish": {
+          "type": "string",
+          "description": "Definition of the word in English",
+          "maxLength": 500
+        },
+        "synonyms": {
+          "type": "array",
+          "description": "List of synonym words"
+        },
+        "antonyms": {
+          "type": "array",
+          "description": "List of antonym words"
+        },
+        "example": {
+          "type": "string",
+          "description": "Contextual usage sentence",
+          "maxLength": 500
+        },
+        "customTip": {
+          "type": "string",
+          "description": "Mnemonic memory key or exam tip",
+          "maxLength": 300
+        },
+        "isCustom": {
+          "type": "boolean",
+          "description": "Indicator that word was contributed by admin"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp of creation"
+        },
+        "createdBy": {
+          "type": "string",
+          "description": "UID or email of the creator"
+        }
+      },
+      "required": ["id", "word", "meaningHindi", "meaningEnglish"]
+    },
+    "Admin": {
+      "title": "Admin",
+      "description": "Registered administrator record granting word management privileges",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "description": "Admin email address"
+        },
+        "role": {
+          "type": "string",
+          "description": "Role type, must be admin"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp of assignment"
+        }
+      },
+      "required": ["email", "role"]
+    }
+  },
+  "firestore": {
+    "/words/{wordId}": {
+      "schema": "Word",
+      "description": "Global vocabulary words collection read by all users, modified only by authorized admins"
+    },
+    "/admins/{adminId}": {
+      "schema": "Admin",
+      "description": "Collection of authorized admin users"
+    }
+  }
+}

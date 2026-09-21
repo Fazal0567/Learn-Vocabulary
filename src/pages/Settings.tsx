@@ -12,6 +12,7 @@ import {
   Lock,
   KeyRound,
   BookPlus,
+  Cloud,
 } from 'lucide-react';
 import { UserSettings } from '../types';
 
@@ -26,6 +27,8 @@ interface SettingsProps {
   onOpenManageCustomWords?: () => void;
   onOpenChangePin?: () => void;
   onLockAdmin?: () => void;
+  currentUserEmail?: string | null;
+  isCloudSynced?: boolean;
 }
 
 export const Settings: React.FC<SettingsProps> = ({
@@ -39,6 +42,8 @@ export const Settings: React.FC<SettingsProps> = ({
   onOpenManageCustomWords,
   onOpenChangePin,
   onLockAdmin,
+  currentUserEmail,
+  isCloudSynced = true,
 }) => {
   const [customGoalInput, setCustomGoalInput] = useState('');
   const [isCustomMode, setIsCustomMode] = useState(false);
@@ -303,8 +308,23 @@ export const Settings: React.FC<SettingsProps> = ({
 
         {isAdmin ? (
           <div className="space-y-3 pt-1">
+            <div className="p-3 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-900/50 space-y-1">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-emerald-900 dark:text-emerald-200">Admin Status:</span>
+                <span className="font-bold text-emerald-700 dark:text-emerald-400 text-[11px]">
+                  Verified & Active
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-emerald-800/80 dark:text-emerald-300/80">Cloud Sync:</span>
+                <span className="text-emerald-700 dark:text-emerald-400 font-medium text-[11px] flex items-center gap-1">
+                  <Cloud className="w-3 h-3" /> Live (Broadcasts to all devices)
+                </span>
+              </div>
+            </div>
+
             <p className="text-xs text-stone-600 dark:text-stone-400 leading-relaxed">
-              As an authenticated admin, you can add new vocabulary words with Hindi meanings, parts of speech, synonyms, and tips.
+              Any word you add or edit is stored in Google Cloud Firestore and instantly updates for all users across the world.
             </p>
 
             <div className="p-3 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-900/40 flex items-center justify-between text-xs">
@@ -352,16 +372,24 @@ export const Settings: React.FC<SettingsProps> = ({
           </div>
         ) : (
           <div className="space-y-3 pt-1">
-            <p className="text-xs text-stone-600 dark:text-stone-400 leading-relaxed">
-              Adding new vocabulary words is protected and restricted only to verified administrators.
-            </p>
+            <div className="p-3 rounded-xl bg-stone-50 dark:bg-stone-800/60 border border-stone-200 dark:border-stone-700/60 text-xs space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-stone-700 dark:text-stone-300">Access Level:</span>
+                <span className="text-amber-600 dark:text-amber-400 text-[11px] font-bold">
+                  Restricted to Admin
+                </span>
+              </div>
+              <p className="text-[11px] text-stone-500 dark:text-stone-400">
+                To prevent spam and protect data, only the verified administrator can add words. All words published by the admin are automatically synced to this device.
+              </p>
+            </div>
             <button
               id="unlock-admin-mode-btn"
               onClick={onOpenAdminAuth}
               className="w-full py-2.5 px-4 text-xs font-bold rounded-xl bg-amber-500 hover:bg-amber-600 text-white shadow-sm flex items-center justify-center gap-2 cursor-pointer transition-colors"
             >
               <Lock className="w-4 h-4" />
-              <span>Unlock Admin Access to Add Words</span>
+              <span>Verify Admin Access</span>
             </button>
           </div>
         )}

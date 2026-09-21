@@ -1,0 +1,203 @@
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import {
+  getFirestore,
+  collection,
+  doc,
+  setDoc,
+  deleteDoc,
+  onSnapshot,
+  query,
+  orderBy,
+  getDocFromServer,
+} from 'firebase/firestore';
+import {
+  getAuth,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signOut,
+  onAuthStateChanged,
+  User,
+  signInAnonymously,
+} from 'firebase/auth';
+import firebaseConfig from '../../firebase-applet-config.json';
+import { WordItem } from '../types';
+
+// Designated Super Admin Email from project creator
+export const SUPER_ADMIN_EMAIL = 'fazalalicontribute@gmail.com';
+
+const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+
+// Initialize Firestore with custom databaseId if specified
+export const db = firebaseConfig.firestoreDatabaseId
+  ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
+  : getFirestore(app);
+
+export const auth = getAuth(app);
+export const googleProvider = new GoogleAuthProvider();
+
+// Test connection on boot
+export async function testFirestoreConnection() {
+  try {
+    await getDocFromServer(doc(db, 'test', 'connection'));
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('the client is offline')) {
+      console.warn('Firebase client offline, utilizing cached state.');
+    }
+  }
+}
+
+/**
+ * Real-time listener for global vocabulary words added by the Admin
+ */
+export function subscribeToWords(onWordsUpdated: (words: WordItem[]) => void) {
+  const wordsRef = collection(db, 'words');
+  const q = query(wordsRef, orderBy('id', 'asc'));
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const words: WordItem[] = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        words.push({
+          id: data.id,
+          word: data.word,
+          pos: data.pos || undefined,
+          meaningHindi: data.meaningHindi,
+          meaningEnglish: data.meaningEnglish,
+          synonyms: Array.isArray(data.synonyms) ? data.synonyms : [],
+          antonyms: Array.isArray(data.antonyms) ? data.antonyms : [],
+          example: data.example || '',
+          customTip: data.customTip || undefined,
+          isCustom: true,
+        });
+      });
+      onWordsUpdated(words);
+    },
+    (error) => {
+      console.error('Error listening to global words from Firestore:', error);
+    }
+  );
+}
+
+/**
+ * Save or update a vocabulary word in the global Firestore database
+ */
+export async function syncWordToFirestore(wordItem: WordItem, authorEmail?: string) {
+  const docRef = doc(db, 'words', String(wordItem.id));
+  await setDoc(
+    docRef,
+    {
+      id: wordItem.id,
+      word: wordItem.word.toUpperCase(),
+      pos: wordItem.pos || '',
+      meaningHindi: wordItem.meaningHindi,
+      meaningEnglish: wordItem.meaningEnglish,
+      synonyms: wordItem.synonyms || [],
+      antonyms: wordItem.antonyms || [],
+      example: wordItem.example || '',
+      customTip: wordItem.customTip || '',
+      isCustom: true,
+      updatedAt: new Date().toISOString(),
+      updatedBy: authorEmail || auth.currentUser?.email || 'admin',
+    },
+    { merge: true }
+  );
+}
+
+/**
+ * Delete a vocabulary word from global Firestore
+ */
+export async function deleteWordFromFirestore(wordId: number) {
+  const docRef = doc(db, 'words', String(wordId));
+  await deleteDoc(docRef);
+}
+
+/**
+ * Check if the currently logged in user is the verified admin
+ */
+export function isUserAdmin(user: User | null): boolean {
+  if (!user) return false;
+  return user.email?.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase();
+}
+
+/**
+ * Sign in with Google Popup (optional alternative)
+ */
+export async function loginWithGoogle(): Promise<User> {
+  const result = await signInWithPopup(auth, googleProvider);
+  return result.user;
+}
+
+/**
+ * Authenticate Admin with secret Passcode
+ */
+export async function loginAdminWithPasscode(
+  enteredPasscode: string,
+  validPasscode: string
+): Promise<boolean> {
+  if (enteredPasscode.trim() !== validPasscode.trim()) {
+    throw new Error('Incorrect passcode. Please enter the correct admin passcode.');
+  }
+
+  // Ensure an authenticated Firebase session for Firestore writes
+  if (!auth.currentUser) {
+    await signInAnonymously(auth);
+  }
+  return true;
+}
+
+/**
+ * Listen for admin passcode updates from Firestore so passcode changes
+ * sync across all admin devices
+ */
+export function subscribeToAdminPasscode(onPasscodeUpdated: (passcode: string) => void) {
+  const configDocRef = doc(db, 'config', 'admin');
+  return onSnapshot(
+    configDocRef,
+    (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        if (data.passcode) {
+          onPasscodeUpdated(data.passcode);
+        }
+      }
+    },
+    (err) => {
+      console.warn('Config passcode read note:', err.message);
+    }
+  );
+}
+
+/**
+ * Update the Admin Passcode in Firestore (syncs across all your devices)
+ */
+export async function updateAdminPasscodeInFirestore(newPasscode: string) {
+  if (!auth.currentUser) {
+    await signInAnonymously(auth);
+  }
+  const configDocRef = doc(db, 'config', 'admin');
+  await setDoc(
+    configDocRef,
+    {
+      passcode: newPasscode.trim(),
+      updatedAt: new Date().toISOString(),
+    },
+    { merge: true }
+  );
+}
+
+/**
+ * Sign in as guest learner
+ */
+export async function loginAsGuest(): Promise<User> {
+  const result = await signInAnonymously(auth);
+  return result.user;
+}
+
+/**
+ * Sign out
+ */
+export async function logoutUser() {
+  await signOut(auth);
+}
