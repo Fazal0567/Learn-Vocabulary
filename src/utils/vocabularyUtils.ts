@@ -135,3 +135,25 @@ export function generateQuizQuestions(count: number = 10, vocabularyList: WordIt
 
   return questions;
 }
+
+/**
+ * Check if a custom word was added on the current calendar day
+ */
+export function isWordAddedToday(word: WordItem): boolean {
+  if (!word.isCustom && word.id <= 1000) return false;
+  const timestamp = word.createdAt || word.updatedAt;
+  if (!timestamp) return false;
+  try {
+    const wordDate = new Date(timestamp);
+    if (isNaN(wordDate.getTime())) return false;
+    const now = new Date();
+    return (
+      wordDate.getFullYear() === now.getFullYear() &&
+      wordDate.getMonth() === now.getMonth() &&
+      wordDate.getDate() === now.getDate()
+    );
+  } catch {
+    return false;
+  }
+}
+

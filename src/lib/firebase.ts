@@ -9,6 +9,7 @@ import {
   query,
   where,
   getDocs,
+  getDoc,
   orderBy,
   getDocFromServer,
 } from 'firebase/firestore';
@@ -70,6 +71,8 @@ export async function fetchWordsFromFirestore(): Promise<WordItem[]> {
         example: data.example || '',
         customTip: data.customTip || undefined,
         isCustom: true,
+        createdAt: data.createdAt || data.updatedAt || undefined,
+        updatedAt: data.updatedAt || undefined,
       });
     });
     return words.sort((a, b) => a.id - b.id);
@@ -103,6 +106,8 @@ export function subscribeToWords(onWordsUpdated: (words: WordItem[]) => void) {
           example: data.example || '',
           customTip: data.customTip || undefined,
           isCustom: true,
+          createdAt: data.createdAt || data.updatedAt || undefined,
+          updatedAt: data.updatedAt || undefined,
         });
       });
       words.sort((a, b) => a.id - b.id);
@@ -119,6 +124,7 @@ export function subscribeToWords(onWordsUpdated: (words: WordItem[]) => void) {
  */
 export async function syncWordToFirestore(wordItem: WordItem, authorEmail?: string) {
   const docRef = doc(db, 'words', String(wordItem.id));
+  const nowIso = new Date().toISOString();
   await setDoc(
     docRef,
     {
@@ -132,7 +138,8 @@ export async function syncWordToFirestore(wordItem: WordItem, authorEmail?: stri
       example: wordItem.example || '',
       customTip: wordItem.customTip || '',
       isCustom: true,
-      updatedAt: new Date().toISOString(),
+      createdAt: wordItem.createdAt || nowIso,
+      updatedAt: nowIso,
       updatedBy: authorEmail || auth.currentUser?.email || 'admin',
     },
     { merge: true }
@@ -204,10 +211,27 @@ export async function loginAdminWithPasscode(
   validPasscode: string
 ): Promise<boolean> {
   const entered = enteredPasscode.trim();
-  const valid = validPasscode.trim();
+  let authoritativePasscode = validPasscode.trim();
 
-  // Strictly validate against the active passcode
-  if (entered !== valid) {
+  try {
+    const configSnap = await getDoc(doc(db, 'config', 'admin'));
+    if (configSnap.exists()) {
+      const cloudPasscode = configSnap.data()?.passcode;
+      if (cloudPasscode && typeof cloudPasscode === 'string') {
+        authoritativePasscode = cloudPasscode.trim();
+        try {
+          localStorage.setItem('vocab_adminPin', JSON.stringify(authoritativePasscode));
+        } catch {
+          // ignore
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Direct Firestore passcode check fallback:', err);
+  }
+
+  // Strictly validate ONLY against the authoritative passcode
+  if (entered !== authoritativePasscode) {
     throw new Error('Incorrect admin passcode. Please enter the correct passcode.');
   }
 

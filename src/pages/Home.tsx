@@ -17,9 +17,11 @@ import {
   ShieldCheck,
   Lock,
   Cloud,
+  X,
 } from 'lucide-react';
 import { WordItem, NavigationTab } from '../types';
 import { VOCABULARY_DATA } from '../data/vocabulary';
+import { isWordAddedToday } from '../utils/vocabularyUtils';
 
 interface HomeProps {
   currentWordId: number;
@@ -63,8 +65,43 @@ export const Home: React.FC<HomeProps> = ({
   const wordsList = allWords || VOCABULARY_DATA;
   const currentWord = wordsList.find(w => w.id === currentWordId) || wordsList[0];
   const totalWords = wordsList.length;
-  const customWords = wordsList.filter((w) => w.isCustom || w.id > 1000);
-  const latestCustom = customWords.length > 0 ? customWords[customWords.length - 1] : null;
+
+  // Words added on TODAY's calendar date only
+  const todayCustomWords = React.useMemo(() => {
+    return wordsList.filter((w) => (w.isCustom || w.id > 1000) && isWordAddedToday(w));
+  }, [wordsList]);
+  const latestTodayCustom = todayCustomWords.length > 0 ? todayCustomWords[todayCustomWords.length - 1] : null;
+
+  // Track dismissed word ID so user can dismiss the card for today, or reset on new day
+  const [dismissedWordId, setDismissedWordId] = React.useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('vocab_dismissed_today_word_id');
+      const savedDate = localStorage.getItem('vocab_dismissed_today_date');
+      const todayDateStr = new Date().toISOString().split('T')[0];
+      if (saved && savedDate === todayDateStr) {
+        return parseInt(saved, 10);
+      }
+    } catch {
+      // ignore
+    }
+    return 0;
+  });
+
+  const showTodayNewWordCard = Boolean(latestTodayCustom && latestTodayCustom.id !== dismissedWordId);
+
+  const handleDismissCard = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (latestTodayCustom) {
+      setDismissedWordId(latestTodayCustom.id);
+      try {
+        localStorage.setItem('vocab_dismissed_today_word_id', String(latestTodayCustom.id));
+        localStorage.setItem('vocab_dismissed_today_date', new Date().toISOString().split('T')[0]);
+      } catch {
+        // ignore
+      }
+    }
+  };
+
   const overallPercentage = Math.round((learnedCount / totalWords) * 100);
   const dailyPercentage = Math.min(100, Math.round((todayLearnedCount / dailyGoal) * 100));
 
@@ -138,32 +175,42 @@ export const Home: React.FC<HomeProps> = ({
         </div>
       </div>
 
-      {/* Newly Added Custom Vocabulary Card (Synced live from Cloud across devices) */}
-      {latestCustom && (
-        <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/60 shadow-sm flex items-center justify-between gap-3">
-          <div className="space-y-0.5 flex-1 min-w-0">
+      {/* Newly Added Custom Vocabulary Card - ONLY shows words added today, disappears when a new day arrives */}
+      {showTodayNewWordCard && latestTodayCustom && (
+        <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/60 shadow-sm flex items-center justify-between gap-3 relative">
+          <div className="space-y-0.5 flex-1 min-w-0 pr-2">
             <div className="flex items-center gap-1.5">
               <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-200/70 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-300">
-                ✨ Cloud Synced ({customWords.length} New)
+                ✨ Added Today ({todayCustomWords.length} New)
               </span>
             </div>
             <h4 className="text-sm font-extrabold text-stone-900 dark:text-stone-100 truncate">
-              {latestCustom.word} <span className="font-normal text-xs text-stone-500">#{latestCustom.id}</span>
+              {latestTodayCustom.word} <span className="font-normal text-xs text-stone-500">#{latestTodayCustom.id}</span>
             </h4>
             <p className="text-xs text-emerald-800 dark:text-emerald-300 font-medium truncate font-['Noto_Sans_Devanagari']">
-              {latestCustom.meaningHindi}
+              {latestTodayCustom.meaningHindi}
             </p>
           </div>
-          <button
-            onClick={() => {
-              onSelectWord(latestCustom.id);
-              onNavigate('learn');
-            }}
-            className="shrink-0 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition-all flex items-center gap-1 cursor-pointer"
-          >
-            <span>Learn</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={() => {
+                onSelectWord(latestTodayCustom.id);
+                onNavigate('learn');
+              }}
+              className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition-all flex items-center gap-1 cursor-pointer"
+            >
+              <span>Learn</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={handleDismissCard}
+              title="Dismiss"
+              aria-label="Dismiss banner"
+              className="p-1.5 rounded-lg text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 hover:bg-emerald-100/60 dark:hover:bg-emerald-900/60 transition-colors cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       )}
 

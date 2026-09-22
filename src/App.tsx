@@ -164,16 +164,26 @@ export default function App() {
     };
   }, []);
 
+  // Auto-prune any custom word IDs (> 1000) that might be lingering in local deletedWordIds
+  useEffect(() => {
+    setDeletedWordIds((prev) => {
+      const filtered = prev.filter((id) => id <= 1000);
+      return filtered.length !== prev.length ? filtered : prev;
+    });
+  }, []);
+
   // Combined Reactive Vocabulary: master dictionary + custom words overrides - deleted words
   const allWords = useMemo(() => {
-    const deletedSet = new Set(deletedWordIds);
+    // deletedWordIds ONLY applies to the static 1,000 master words (IDs 1-1000)
+    // Custom words (from Firestore & Admin) are authoritative from customWords
+    const deletedStaticIds = new Set(deletedWordIds.filter((id) => id <= 1000));
     const customMap = new Map<number, WordItem>();
     customWords.forEach((w) => customMap.set(w.id, w));
 
     const list: WordItem[] = [];
-    // 1. Master words (with admin edits taking precedence)
+    // 1. Master words (with admin edits taking precedence, unless static word was deleted)
     for (const item of VOCABULARY_DATA) {
-      if (deletedSet.has(item.id)) continue;
+      if (deletedStaticIds.has(item.id)) continue;
       if (customMap.has(item.id)) {
         list.push(customMap.get(item.id)!);
         customMap.delete(item.id);
@@ -181,11 +191,9 @@ export default function App() {
         list.push(item);
       }
     }
-    // 2. Any additional custom words
+    // 2. All active custom words (All valid custom words from cloud/admin are included)
     for (const item of customMap.values()) {
-      if (!deletedSet.has(item.id)) {
-        list.push(item);
-      }
+      list.push(item);
     }
     return list.sort((a, b) => a.id - b.id);
   }, [customWords, deletedWordIds]);
@@ -325,10 +333,14 @@ export default function App() {
   // Admin Actions (Strictly restricted to Admin mode)
   const handleSaveWord = async (wordData: Omit<WordItem, 'id'>, editId?: number) => {
     if (editId) {
+      const nowIso = new Date().toISOString();
+      const existingWord = customWords.find((w) => w.id === editId);
       const updatedWord: WordItem = {
         ...wordData,
         id: editId,
         isCustom: true,
+        createdAt: existingWord?.createdAt || nowIso,
+        updatedAt: nowIso,
       };
       setCustomWords((prev) => {
         const idx = prev.findIndex((w) => w.id === editId);
@@ -355,10 +367,13 @@ export default function App() {
     } else {
       const maxId = allWords.reduce((max, w) => Math.max(max, w.id), 0);
       const newId = Math.max(maxId + 1, 1001);
+      const nowIso = new Date().toISOString();
       const newWord: WordItem = {
         ...wordData,
         id: newId,
         isCustom: true,
+        createdAt: nowIso,
+        updatedAt: nowIso,
       };
       setCustomWords((prev) => [...prev, newWord]);
       setDeletedWordIds((prev) => prev.filter((id) => id !== newId));
@@ -382,9 +397,13 @@ export default function App() {
     const deletedWord = allWords.find((w) => w.id === id);
     const wordTitle = deletedWord?.word || `#${id}`;
 
-    // 1. Remove from customWords and mark in deletedWordIds
+    // 1. Remove from customWords and mark in deletedWordIds (only for static words <= 1000)
     setCustomWords((prev) => prev.filter((w) => w.id !== id));
-    setDeletedWordIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+    if (id <= 1000) {
+      setDeletedWordIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+    } else {
+      setDeletedWordIds((prev) => prev.filter((dId) => dId !== id));
+    }
 
     // 2. Clean up user progress markers
     setLearnedIds((prev) => prev.filter((itemId) => itemId !== id));
@@ -408,8 +427,9 @@ export default function App() {
   };
 
   const handleDeleteAllCustomWords = async () => {
-    // 1. Immediately wipe local custom words
+    // 1. Immediately wipe local custom words and ensure custom IDs are cleared from deletedWordIds
     setCustomWords([]);
+    setDeletedWordIds((prev) => prev.filter((id) => id <= 1000));
 
     // 2. Refresh local IndexedDB cache with clean 1,000 master words
     try {

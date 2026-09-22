@@ -10,6 +10,8 @@ export interface WordItem {
   isCustom?: boolean;
   customTip?: string;
   firestoreDocId?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export type NavigationTab =
