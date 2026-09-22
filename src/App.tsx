@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Check, CloudCheck, Cloud, Wifi, WifiOff } from 'lucide-react';
+import { Check, CloudCheck, Cloud } from 'lucide-react';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { NavigationTab, RevisionFilter, UserSettings, WordItem } from './types';
 import { VOCABULARY_DATA } from './data/vocabulary';
@@ -467,24 +467,6 @@ export default function App() {
 
   return (
     <div className="w-screen h-[100dvh] flex flex-col bg-stone-100 dark:bg-stone-950 text-stone-900 dark:text-stone-100 overflow-hidden font-['Plus_Jakarta_Sans',sans-serif]">
-      {/* Network Status Corner Icon (Shows Online / Offline logo) */}
-      <div
-        title={isOnline ? 'Online (Auto-synced)' : 'Offline (Auto-cached in IndexedDB)'}
-        className="absolute top-2.5 left-3 z-40 px-2 py-1 rounded-full bg-white/90 dark:bg-stone-900/90 backdrop-blur-md border border-stone-200/80 dark:border-stone-800/80 shadow-xs flex items-center gap-1.5 text-[11px] font-semibold text-stone-700 dark:text-stone-300 pointer-events-auto transition-all"
-      >
-        {isOnline ? (
-          <>
-            <Wifi className="w-3.5 h-3.5 text-emerald-500" />
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-          </>
-        ) : (
-          <>
-            <WifiOff className="w-3.5 h-3.5 text-amber-500" />
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-          </>
-        )}
-      </div>
-
       {/* Main Content Area */}
       <main className="flex-1 w-full overflow-hidden relative">
         {activeTab === 'home' && (
