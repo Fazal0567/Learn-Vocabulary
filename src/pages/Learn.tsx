@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { AnimatePresence } from 'motion/react';
 import {
-  ChevronUp,
-  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Sparkles,
   Heart,
   Star,
@@ -200,7 +200,7 @@ export const Learn: React.FC<LearnProps> = ({
         ref={cardContainerRef}
         onTouchStart={swipeHandlers.onTouchStart}
         onTouchEnd={swipeHandlers.onTouchEnd}
-        className="flex-1 w-full h-full relative overflow-hidden flex items-center justify-center p-2 sm:p-4 touch-pan-y"
+        className="flex-1 w-full min-h-0 relative overflow-hidden flex flex-col items-center justify-center p-2 sm:p-4 touch-pan-y"
       >
         {activeWordList.length === 0 ? (
           /* Empty State */
@@ -239,7 +239,7 @@ export const Learn: React.FC<LearnProps> = ({
           </div>
         ) : (
           /* Card Container */
-          <div className="w-full h-full max-w-md bg-white dark:bg-stone-900 rounded-2xl sm:rounded-3xl shadow-xl sm:shadow-2xl border border-stone-200/90 dark:border-stone-800/90 flex flex-col overflow-hidden relative">
+          <div className="w-full flex-1 min-h-0 max-w-md bg-white dark:bg-stone-900 rounded-2xl sm:rounded-3xl shadow-xl sm:shadow-2xl border border-stone-200/90 dark:border-stone-800/90 flex flex-col overflow-hidden relative">
             <AnimatePresence initial={false} custom={direction} mode="wait">
               {currentWord && (
                 <WordCard
@@ -263,48 +263,73 @@ export const Learn: React.FC<LearnProps> = ({
           </div>
         )}
 
-        {/* Floating Quick Navigation Controls (Visible on mobile & desktop) */}
+        {/* Dedicated Next & Previous Navigation Bar */}
         {activeWordList.length > 0 && (
-          <div className="flex flex-col items-center gap-2 absolute right-2.5 sm:right-5 top-1/2 -translate-y-1/2 bg-white/90 dark:bg-stone-900/90 backdrop-blur-md p-1.5 rounded-2xl border border-stone-200 dark:border-stone-800 shadow-xl z-20">
+          <div className="w-full max-w-md flex items-center justify-between gap-2.5 pt-2.5 px-1 shrink-0 z-20">
             <button
-              id="reel-nav-prev-btn"
+              id="learn-prev-btn"
               onClick={handlePrev}
               aria-label="Previous Word"
-              className="p-2 sm:p-2.5 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300 hover:text-amber-600 dark:hover:text-amber-400 active:scale-90 transition-all"
-              title="Previous Word (Swipe Down or ↑ Key)"
+              className="flex-1 min-h-[42px] flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 hover:text-amber-600 dark:hover:text-amber-400 font-bold text-xs sm:text-sm shadow-xs active:scale-95 transition-all cursor-pointer select-none"
+              title="Previous Word (← Arrow or Swipe Right)"
             >
-              <ChevronUp className="w-5 h-5" />
+              <ChevronLeft className="w-4 h-4" />
+              <span>Previous</span>
             </button>
-            <div className="text-[10px] font-mono font-bold text-stone-500 dark:text-stone-400 text-center px-1">
-              {currentIndex + 1}
+
+            <div className="text-[11px] sm:text-xs font-mono font-bold text-stone-600 dark:text-stone-300 shrink-0 px-2.5 py-1.5 rounded-lg bg-stone-200/70 dark:bg-stone-800/70 border border-stone-300/40 dark:border-stone-700/40">
+              {currentIndex + 1} of {activeWordList.length}
             </div>
+
             <button
-              id="reel-nav-next-btn"
+              id="learn-next-btn"
               onClick={handleNext}
               aria-label="Next Word"
-              className="p-2 sm:p-2.5 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300 hover:text-amber-600 dark:hover:text-amber-400 active:scale-90 transition-all"
-              title="Next Word (Swipe Up or ↓ Key)"
+              className="flex-1 min-h-[42px] flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs sm:text-sm shadow-xs active:scale-95 transition-all cursor-pointer select-none"
+              title="Next Word (→ Arrow, Space, or Swipe Left)"
             >
-              <ChevronDown className="w-5 h-5" />
+              <span>Next</span>
+              <ChevronRight className="w-4 h-4" />
             </button>
           </div>
+        )}
+
+        {/* Desktop Side Arrows for wide-screen navigation */}
+        {activeWordList.length > 0 && (
+          <>
+            <button
+              id="learn-desktop-prev-btn"
+              onClick={handlePrev}
+              aria-label="Previous Word"
+              className="hidden lg:flex absolute left-4 xl:left-8 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/95 dark:bg-stone-900/95 backdrop-blur-md border border-stone-200 dark:border-stone-800 text-stone-700 dark:text-stone-300 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-white dark:hover:bg-stone-800 shadow-lg active:scale-90 transition-all z-20 cursor-pointer"
+              title="Previous Word (← Arrow)"
+            >
+              <ChevronLeft className="w-6 h-6" />
+            </button>
+            <button
+              id="learn-desktop-next-btn"
+              onClick={handleNext}
+              aria-label="Next Word"
+              className="hidden lg:flex absolute right-4 xl:right-8 top-1/2 -translate-y-1/2 p-3 rounded-full bg-amber-500 hover:bg-amber-600 text-white shadow-lg active:scale-90 transition-all z-20 cursor-pointer"
+              title="Next Word (→ Arrow or Space)"
+            >
+              <ChevronRight className="w-6 h-6" />
+            </button>
+          </>
         )}
       </div>
 
       {/* Desktop Helper Banner */}
       <div className="hidden md:flex items-center justify-center gap-4 py-1.5 px-4 bg-stone-200/40 dark:bg-stone-900/40 border-t border-stone-200 dark:border-stone-800/60 text-[11px] font-mono text-stone-500 dark:text-stone-400 shrink-0">
         <span className="flex items-center gap-1">
-          <kbd className="px-1.5 py-0.5 rounded bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 shadow-xs">↓</kbd>
+          <kbd className="px-1.5 py-0.5 rounded bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 shadow-xs">←</kbd>
+          Previous Word
+        </span>
+        <span className="flex items-center gap-1">
+          <kbd className="px-1.5 py-0.5 rounded bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 shadow-xs">→</kbd>
           or
           <kbd className="px-1.5 py-0.5 rounded bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 shadow-xs">Space</kbd>
           Next Word
-        </span>
-        <span className="flex items-center gap-1">
-          <kbd className="px-1.5 py-0.5 rounded bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 shadow-xs">↑</kbd>
-          Previous Word
-        </span>
-        <span className="text-[10px] text-stone-400">
-          (Swipe up / Scroll down for next word)
         </span>
       </div>
     </div>

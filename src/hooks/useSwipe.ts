@@ -56,22 +56,38 @@ export function useSwipe({
 
       if (isLocked.current) return;
 
-      // Check if gesture is predominantly vertical
+      // Check if gesture is predominantly vertical or horizontal
       const isVertical = Math.abs(deltaY) > Math.abs(deltaX);
-      const isDistanceMet = Math.abs(deltaY) >= threshold;
+      const isDistanceMet = isVertical
+        ? Math.abs(deltaY) >= threshold
+        : Math.abs(deltaX) >= threshold;
 
       // Allow quick flick gestures (small distance but fast speed)
-      const isQuickFlick = deltaTime < 250 && Math.abs(deltaY) >= 20;
+      const isQuickFlick = isVertical
+        ? deltaTime < 250 && Math.abs(deltaY) >= 20
+        : deltaTime < 250 && Math.abs(deltaX) >= 20;
 
-      if (isVertical && (isDistanceMet || isQuickFlick)) {
-        if (deltaY < 0) {
-          // Swiped UP (finger moved up) -> Show NEXT word
-          lockNavigation();
-          onNext();
+      if (isDistanceMet || isQuickFlick) {
+        if (isVertical) {
+          if (deltaY < 0) {
+            // Swiped UP -> Show NEXT word
+            lockNavigation();
+            onNext();
+          } else {
+            // Swiped DOWN -> Show PREVIOUS word
+            lockNavigation();
+            onPrev();
+          }
         } else {
-          // Swiped DOWN (finger moved down) -> Show PREVIOUS word
-          lockNavigation();
-          onPrev();
+          if (deltaX < 0) {
+            // Swiped LEFT -> Show NEXT word
+            lockNavigation();
+            onNext();
+          } else {
+            // Swiped RIGHT -> Show PREVIOUS word
+            lockNavigation();
+            onPrev();
+          }
         }
       }
     },
@@ -120,8 +136,9 @@ export function useSwipe({
         return;
       }
 
-      // Next Word keys: ArrowDown, PageDown, Space, 'j', 'J', 'Enter'
+      // Next Word keys: ArrowRight, ArrowDown, PageDown, Space, 'j', 'J'
       if (
+        e.key === 'ArrowRight' ||
         e.key === 'ArrowDown' ||
         e.code === 'Space' ||
         e.key === 'PageDown' ||
@@ -132,8 +149,9 @@ export function useSwipe({
         lockNavigation();
         onNext();
       }
-      // Previous Word keys: ArrowUp, PageUp, 'k', 'K'
+      // Previous Word keys: ArrowLeft, ArrowUp, PageUp, 'k', 'K'
       else if (
+        e.key === 'ArrowLeft' ||
         e.key === 'ArrowUp' ||
         e.key === 'PageUp' ||
         e.key === 'k' ||
