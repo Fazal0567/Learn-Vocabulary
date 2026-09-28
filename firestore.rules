@@ -35,6 +35,12 @@ service cloud.firestore {
       allow write: if true;
     }
 
+    // Global editorials & MCQs: accessible to all students, created & deleted by admin
+    match /editorials/{editorialId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
     // Admin passcode configuration (synced across admin devices)
     match /config/{configId} {
       allow read: if true;

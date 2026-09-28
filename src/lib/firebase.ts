@@ -12,6 +12,7 @@ import {
   getDoc,
   orderBy,
   getDocFromServer,
+  writeBatch,
 } from 'firebase/firestore';
 import {
   getAuth,
@@ -23,7 +24,7 @@ import {
   signInAnonymously,
 } from 'firebase/auth';
 import firebaseConfig from '../../firebase-applet-config.json';
-import { WordItem } from '../types';
+import { WordItem, EditorialItem } from '../types';
 
 // Designated Super Admin Email from project creator
 export const SUPER_ADMIN_EMAIL = 'fazalalicontribute@gmail.com';
@@ -144,6 +145,53 @@ export async function syncWordToFirestore(wordItem: WordItem, authorEmail?: stri
     },
     { merge: true }
   );
+}
+
+/**
+ * Batch save multiple vocabulary words into Firestore using atomic writeBatch chunks
+ */
+export async function syncBatchWordsToFirestore(
+  words: WordItem[],
+  authorEmail?: string,
+  onProgress?: (processed: number, total: number) => void
+): Promise<void> {
+  if (!words || words.length === 0) return;
+  const nowIso = new Date().toISOString();
+  const author = authorEmail || auth.currentUser?.email || 'admin';
+  const BATCH_CHUNK_SIZE = 400; // Well within Firestore's 500 operations per batch limit
+
+  for (let i = 0; i < words.length; i += BATCH_CHUNK_SIZE) {
+    const chunk = words.slice(i, i + BATCH_CHUNK_SIZE);
+    const batch = writeBatch(db);
+
+    for (const item of chunk) {
+      const docRef = doc(db, 'words', String(item.id));
+      batch.set(
+        docRef,
+        {
+          id: item.id,
+          word: item.word.toUpperCase().trim(),
+          pos: item.pos || '',
+          meaningHindi: item.meaningHindi || '',
+          meaningEnglish: item.meaningEnglish || '',
+          synonyms: Array.isArray(item.synonyms) ? item.synonyms : [],
+          antonyms: Array.isArray(item.antonyms) ? item.antonyms : [],
+          example: item.example || '',
+          customTip: item.customTip || '',
+          isCustom: true,
+          createdAt: item.createdAt || nowIso,
+          updatedAt: nowIso,
+          updatedBy: author,
+        },
+        { merge: true }
+      );
+    }
+
+    await batch.commit();
+    if (onProgress) {
+      onProgress(Math.min(i + chunk.length, words.length), words.length);
+    }
+  }
 }
 
 /**
@@ -303,4 +351,108 @@ export async function loginAsGuest(): Promise<User> {
  */
 export async function logoutUser() {
   await signOut(auth);
+}
+
+/**
+ * Direct fetch of all editorials from Firestore
+ */
+export async function fetchEditorialsFromFirestore(): Promise<EditorialItem[]> {
+  try {
+    const edRef = collection(db, 'editorials');
+    const snapshot = await getDocs(edRef);
+    const editorials: EditorialItem[] = [];
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      editorials.push({
+        id: docSnap.id,
+        title: data.title || 'Untitled Editorial',
+        date: data.date || new Date().toISOString().split('T')[0],
+        publisher: data.publisher || 'Unknown Publisher',
+        category: data.category || 'General',
+        content: data.content || '',
+        summary: data.summary || '',
+        vocabulary: Array.isArray(data.vocabulary) ? data.vocabulary : [],
+        mcqs: Array.isArray(data.mcqs) ? data.mcqs : [],
+        readingTimeMinutes: typeof data.readingTimeMinutes === 'number' ? data.readingTimeMinutes : 4,
+        createdAt: data.createdAt || new Date().toISOString(),
+        updatedAt: data.updatedAt || undefined,
+        createdBy: data.createdBy || undefined,
+      });
+    });
+    return editorials.sort((a, b) => b.date.localeCompare(a.date));
+  } catch (err) {
+    console.warn('Direct fetch editorials error:', err);
+    return [];
+  }
+}
+
+/**
+ * Real-time listener for editorials collection
+ */
+export function subscribeToEditorials(onUpdated: (editorials: EditorialItem[]) => void) {
+  const edRef = collection(db, 'editorials');
+  return onSnapshot(
+    edRef,
+    (snapshot) => {
+      const editorials: EditorialItem[] = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        editorials.push({
+          id: docSnap.id,
+          title: data.title || 'Untitled Editorial',
+          date: data.date || new Date().toISOString().split('T')[0],
+          publisher: data.publisher || 'Unknown Publisher',
+          category: data.category || 'General',
+          content: data.content || '',
+          summary: data.summary || '',
+          vocabulary: Array.isArray(data.vocabulary) ? data.vocabulary : [],
+          mcqs: Array.isArray(data.mcqs) ? data.mcqs : [],
+          readingTimeMinutes: typeof data.readingTimeMinutes === 'number' ? data.readingTimeMinutes : 4,
+          createdAt: data.createdAt || new Date().toISOString(),
+          updatedAt: data.updatedAt || undefined,
+          createdBy: data.createdBy || undefined,
+        });
+      });
+      editorials.sort((a, b) => b.date.localeCompare(a.date));
+      onUpdated(editorials);
+    },
+    (err) => {
+      console.warn('Subscription error for editorials:', err);
+    }
+  );
+}
+
+/**
+ * Sync or create an editorial in Firestore
+ */
+export async function syncEditorialToFirestore(editorial: EditorialItem, authorEmail?: string) {
+  const docRef = doc(db, 'editorials', editorial.id);
+  const nowIso = new Date().toISOString();
+  await setDoc(
+    docRef,
+    {
+      id: editorial.id,
+      title: editorial.title.trim(),
+      date: editorial.date.trim(),
+      publisher: editorial.publisher.trim(),
+      category: (editorial.category || 'General').trim(),
+      content: editorial.content.trim(),
+      summary: (editorial.summary || '').trim(),
+      vocabulary: editorial.vocabulary || [],
+      mcqs: editorial.mcqs || [],
+      readingTimeMinutes: editorial.readingTimeMinutes || Math.max(1, Math.ceil(editorial.content.split(/\s+/).length / 200)),
+      createdAt: editorial.createdAt || nowIso,
+      updatedAt: nowIso,
+      createdBy: authorEmail || auth.currentUser?.email || 'admin',
+    },
+    { merge: true }
+  );
+}
+
+/**
+ * Delete an editorial from Firestore
+ */
+export async function deleteEditorialFromFirestore(editorialId: string): Promise<void> {
+  const docRef = doc(db, 'editorials', editorialId);
+  await deleteDoc(docRef);
 }

@@ -6,10 +6,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Check, CloudCheck, Cloud } from 'lucide-react';
 import { useLocalStorage } from './hooks/useLocalStorage';
-import { NavigationTab, RevisionFilter, UserSettings, WordItem } from './types';
+import { NavigationTab, RevisionFilter, UserSettings, WordItem, EditorialItem } from './types';
 import { VOCABULARY_DATA } from './data/vocabulary';
+import { DEFAULT_EDITORIALS, DUMMY_EDITORIAL_IDS } from './data/defaultEditorials';
 import { Home } from './pages/Home';
 import { Learn } from './pages/Learn';
+import { Editorial } from './pages/Editorial';
 import { Important } from './pages/Important';
 import { Favorites } from './pages/Favorites';
 import { Revision } from './pages/Revision';
@@ -21,6 +23,8 @@ import { BottomNavigation } from './components/BottomNavigation';
 import { ConfirmModal } from './components/ConfirmModal';
 import { AdminAuthModal } from './components/AdminAuthModal';
 import { AddWordModal } from './components/AddWordModal';
+import { ImportWordsJsonModal } from './components/ImportWordsJsonModal';
+import { AddEditorialModal } from './components/AddEditorialModal';
 import { ManageCustomWordsModal } from './components/ManageCustomWordsModal';
 import { ChangeAdminPasscodeModal } from './components/ChangeAdminPasscodeModal';
 import {
@@ -34,6 +38,7 @@ import {
   subscribeToWords,
   fetchWordsFromFirestore,
   syncWordToFirestore,
+  syncBatchWordsToFirestore,
   deleteWordFromFirestore,
   deleteAllCustomWordsFromFirestore,
   testFirestoreConnection,
@@ -41,6 +46,10 @@ import {
   logoutUser,
   subscribeToAdminPasscode,
   updateAdminPasscodeInFirestore,
+  fetchEditorialsFromFirestore,
+  subscribeToEditorials,
+  syncEditorialToFirestore,
+  deleteEditorialFromFirestore,
 } from './lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
@@ -55,6 +64,11 @@ export default function App() {
   const [customWords, setCustomWords] = useLocalStorage<WordItem[]>('vocab_customWords', []);
   const [deletedWordIds, setDeletedWordIds] = useLocalStorage<number[]>('vocab_deletedWordIds', []);
 
+  // Editorial Section State (synced with Firestore)
+  const [editorials, setEditorials] = useLocalStorage<EditorialItem[]>('vocab_editorials', []);
+  const [isAddEditorialOpen, setIsAddEditorialOpen] = useState(false);
+  const [editorialToEdit, setEditorialToEdit] = useState<EditorialItem | null>(null);
+
   // Offline Caching & Connection State
   const [isOnline, setIsOnline] = useState<boolean>(typeof navigator !== 'undefined' ? navigator.onLine : true);
   const [offlineCacheCount, setOfflineCacheCount] = useState<number>(0);
@@ -67,6 +81,7 @@ export default function App() {
   // Admin Modal States
   const [isAdminAuthOpen, setIsAdminAuthOpen] = useState(false);
   const [isAddWordOpen, setIsAddWordOpen] = useState(false);
+  const [isImportWordsOpen, setIsImportWordsOpen] = useState(false);
   const [isManageWordsOpen, setIsManageWordsOpen] = useState(false);
   const [isChangePinOpen, setIsChangePinOpen] = useState(false);
   const [wordToEdit, setWordToEdit] = useState<WordItem | null>(null);
@@ -157,10 +172,34 @@ export default function App() {
       }
     });
 
+    // 4. Fetch + subscription to real Editorials in Firestore (without dummy data)
+    fetchEditorialsFromFirestore().then((initialEditorials) => {
+      if (initialEditorials && initialEditorials.length > 0) {
+        // Automatically delete any dummy items from Firestore if previously synced
+        initialEditorials.forEach((item) => {
+          if (DUMMY_EDITORIAL_IDS.includes(item.id)) {
+            deleteEditorialFromFirestore(item.id).catch(() => {});
+          }
+        });
+        const clean = initialEditorials.filter((item) => !DUMMY_EDITORIAL_IDS.includes(item.id));
+        setEditorials(clean);
+      } else {
+        setEditorials([]);
+      }
+    });
+
+    const unsubscribeEditorials = subscribeToEditorials((remoteEditorials) => {
+      if (remoteEditorials) {
+        const clean = remoteEditorials.filter((item) => !DUMMY_EDITORIAL_IDS.includes(item.id));
+        setEditorials(clean);
+      }
+    });
+
     return () => {
       unsubscribeAuth();
       unsubscribeWords();
       unsubscribePasscode();
+      unsubscribeEditorials();
     };
   }, []);
 
@@ -169,6 +208,14 @@ export default function App() {
     setDeletedWordIds((prev) => {
       const filtered = prev.filter((id) => id <= 1000);
       return filtered.length !== prev.length ? filtered : prev;
+    });
+  }, []);
+
+  // Auto-prune any dummy editorial IDs from local state
+  useEffect(() => {
+    setEditorials((prev) => {
+      const clean = prev.filter((item) => !DUMMY_EDITORIAL_IDS.includes(item.id));
+      return clean.length !== prev.length ? clean : prev;
     });
   }, []);
 
@@ -393,6 +440,72 @@ export default function App() {
     }
   };
 
+  // Batch Import Words from JSON (Admin Exclusive)
+  const handleImportWords = async (
+    wordsToAdd: Omit<WordItem, 'id'>[],
+    wordsToUpdate?: WordItem[]
+  ) => {
+    let currentCustomList = [...customWords];
+    const updatedCustomIds = new Set<number>();
+
+    // 1. Process updates first if any
+    if (wordsToUpdate && wordsToUpdate.length > 0) {
+      for (const updated of wordsToUpdate) {
+        updatedCustomIds.add(updated.id);
+        const idx = currentCustomList.findIndex((w) => w.id === updated.id);
+        if (idx >= 0) {
+          currentCustomList[idx] = updated;
+        } else {
+          currentCustomList.push(updated);
+        }
+      }
+    }
+
+    // 2. Process additions
+    const currentMaxId = allWords.reduce((max, w) => Math.max(max, w.id), 0);
+    let nextId = Math.max(currentMaxId + 1, 1001);
+    const nowIso = new Date().toISOString();
+    const newItems: WordItem[] = [];
+
+    for (const item of wordsToAdd) {
+      const newWord: WordItem = {
+        ...item,
+        id: nextId++,
+        isCustom: true,
+        createdAt: nowIso,
+        updatedAt: nowIso,
+      };
+      newItems.push(newWord);
+      currentCustomList.push(newWord);
+    }
+
+    // 3. Update local state
+    setCustomWords(currentCustomList);
+    const allAffectedIds = new Set([...updatedCustomIds, ...newItems.map((n) => n.id)]);
+    setDeletedWordIds((prev) => prev.filter((id) => !allAffectedIds.has(id)));
+
+    // 4. Update IndexedDB cache for offline persistence
+    const combinedForCache = allWords
+      .filter((w) => !allAffectedIds.has(w.id))
+      .concat(wordsToUpdate || [], newItems);
+    cacheWordsToIndexedDB(combinedForCache).catch(console.warn);
+    setOfflineCacheCount(combinedForCache.length);
+    setLastCacheTime(nowIso);
+
+    const totalCount = (wordsToUpdate?.length || 0) + newItems.length;
+    showToast(`Syncing ${totalCount} words to cloud database...`);
+
+    // 5. Batch sync to Firestore
+    try {
+      const allToSync = [...(wordsToUpdate || []), ...newItems];
+      await syncBatchWordsToFirestore(allToSync, currentUserEmail || 'admin');
+      showToast(`Successfully imported ${totalCount} words via JSON!`);
+    } catch (err) {
+      console.error('Batch sync to Firestore failed:', err);
+      showToast(`Imported ${totalCount} words locally.`);
+    }
+  };
+
   const handleDeleteWord = async (id: number) => {
     const deletedWord = allWords.find((w) => w.id === id);
     const wordTitle = deletedWord?.word || `#${id}`;
@@ -465,6 +578,47 @@ export default function App() {
     showToast('Admin mode locked. Returned to student view.');
   };
 
+  // Editorial Save & Delete Handlers (Admin CRUD with Cloud Sync)
+  const handleSaveEditorial = async (editorial: EditorialItem) => {
+    try {
+      await syncEditorialToFirestore(editorial, currentUserEmail || 'admin');
+      setEditorials((prev) => {
+        const index = prev.findIndex((e) => e.id === editorial.id);
+        if (index >= 0) {
+          const updated = [...prev];
+          updated[index] = editorial;
+          return updated;
+        }
+        return [editorial, ...prev];
+      });
+      showToast(`Editorial "${editorial.title}" saved to cloud!`);
+    } catch (err: any) {
+      console.error('Failed to sync editorial to Firestore:', err);
+      setEditorials((prev) => {
+        const index = prev.findIndex((e) => e.id === editorial.id);
+        if (index >= 0) {
+          const updated = [...prev];
+          updated[index] = editorial;
+          return updated;
+        }
+        return [editorial, ...prev];
+      });
+      showToast('Saved locally in offline mode.');
+    }
+  };
+
+  const handleDeleteEditorial = async (editorialId: string) => {
+    try {
+      await deleteEditorialFromFirestore(editorialId);
+      setEditorials((prev) => prev.filter((e) => e.id !== editorialId));
+      showToast('Editorial deleted successfully from cloud.');
+    } catch (err) {
+      console.error('Failed to delete editorial from cloud:', err);
+      setEditorials((prev) => prev.filter((e) => e.id !== editorialId));
+      showToast('Deleted locally.');
+    }
+  };
+
   return (
     <div className="w-screen h-[100dvh] flex flex-col bg-stone-100 dark:bg-stone-950 text-stone-900 dark:text-stone-100 overflow-hidden font-['Plus_Jakarta_Sans',sans-serif]">
       {/* Main Content Area */}
@@ -491,9 +645,11 @@ export default function App() {
               setWordToEdit(null);
               setIsAddWordOpen(true);
             }}
+            onOpenImportJson={() => setIsImportWordsOpen(true)}
             onOpenAdminAuth={() => setIsAdminAuthOpen(true)}
             currentUserEmail={currentUserEmail}
             isCloudSynced={isCloudSynced}
+            editorialsCount={editorials.length}
           />
         )}
 
@@ -521,6 +677,24 @@ export default function App() {
               setWordToEdit(null);
               setIsAddWordOpen(true);
             }}
+            onOpenImportJson={() => setIsImportWordsOpen(true)}
+          />
+        )}
+
+        {activeTab === 'editorial' && (
+          <Editorial
+            editorials={editorials}
+            isAdmin={isAdmin}
+            onOpenAddEditorial={() => {
+              setEditorialToEdit(null);
+              setIsAddEditorialOpen(true);
+            }}
+            onOpenEditEditorial={(item) => {
+              setEditorialToEdit(item);
+              setIsAddEditorialOpen(true);
+            }}
+            onDeleteEditorial={handleDeleteEditorial}
+            onNavigateHome={() => setActiveTab('home')}
           />
         )}
 
@@ -596,6 +770,7 @@ export default function App() {
               setWordToEdit(null);
               setIsAddWordOpen(true);
             }}
+            onOpenImportJson={() => setIsImportWordsOpen(true)}
             onOpenManageCustomWords={() => setIsManageWordsOpen(true)}
             onOpenChangePin={() => setIsChangePinOpen(true)}
             onLockAdmin={handleLockAdmin}
@@ -619,6 +794,7 @@ export default function App() {
         }}
         favoritesCount={favoriteIds.length}
         importantCount={importantIds.length}
+        editorialsCount={editorials.length}
       />
 
       {/* Global Search Dialog (if opened as modal) */}
@@ -662,6 +838,26 @@ export default function App() {
         onSaveWord={handleSaveWord}
         existingWords={allWords}
         editWord={wordToEdit}
+        onOpenImportJson={() => setIsImportWordsOpen(true)}
+      />
+
+      {/* Admin Import Words via JSON Modal */}
+      <ImportWordsJsonModal
+        isOpen={isImportWordsOpen}
+        onClose={() => setIsImportWordsOpen(false)}
+        onImportWords={handleImportWords}
+        existingWords={allWords}
+      />
+
+      {/* Admin Add / Edit Editorial Modal */}
+      <AddEditorialModal
+        isOpen={isAddEditorialOpen}
+        onClose={() => {
+          setIsAddEditorialOpen(false);
+          setEditorialToEdit(null);
+        }}
+        onSave={handleSaveEditorial}
+        editorialToEdit={editorialToEdit}
       />
 
       {/* Admin Manage Custom Words Modal */}
@@ -674,6 +870,7 @@ export default function App() {
           setWordToEdit(null);
           setIsAddWordOpen(true);
         }}
+        onOpenImportJson={() => setIsImportWordsOpen(true)}
         onEditWord={handleEditWord}
         onDeleteWord={handleDeleteWord}
         onDeleteAllCustomWords={handleDeleteAllCustomWords}

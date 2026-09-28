@@ -15,6 +15,7 @@ import {
   Cloud,
   Wifi,
   WifiOff,
+  FileCode,
 } from 'lucide-react';
 import { UserSettings } from '../types';
 
@@ -26,6 +27,7 @@ interface SettingsProps {
   customWordsCount?: number;
   onOpenAdminAuth?: () => void;
   onOpenAddWord?: () => void;
+  onOpenImportJson?: () => void;
   onOpenManageCustomWords?: () => void;
   onOpenChangePin?: () => void;
   onLockAdmin?: () => void;
@@ -45,6 +47,7 @@ export const Settings: React.FC<SettingsProps> = ({
   customWordsCount = 0,
   onOpenAdminAuth,
   onOpenAddWord,
+  onOpenImportJson,
   onOpenManageCustomWords,
   onOpenChangePin,
   onLockAdmin,
@@ -342,14 +345,24 @@ export const Settings: React.FC<SettingsProps> = ({
               <span className="font-mono font-bold text-amber-600 dark:text-amber-400">{customWordsCount} words</span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
               <button
                 id="admin-add-new-word-btn"
                 onClick={onOpenAddWord}
                 className="py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
-                <span>Add New Word</span>
+                <span>Add Word</span>
+              </button>
+
+              <button
+                id="admin-import-json-btn"
+                onClick={onOpenImportJson}
+                className="py-2.5 px-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-300 text-xs font-bold border border-amber-300 dark:border-amber-800 flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                title="Add words using a JSON file or paste JSON code"
+              >
+                <FileCode className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                <span>Import JSON</span>
               </button>
 
               <button
@@ -358,7 +371,7 @@ export const Settings: React.FC<SettingsProps> = ({
                 className="py-2.5 px-3 rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-750 text-stone-800 dark:text-stone-200 text-xs font-bold border border-stone-200 dark:border-stone-700 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
               >
                 <BookPlus className="w-4 h-4 text-amber-600" />
-                <span>Manage Words ({customWordsCount})</span>
+                <span>Manage ({customWordsCount})</span>
               </button>
             </div>
 

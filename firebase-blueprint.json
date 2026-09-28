@@ -81,6 +81,69 @@
         }
       },
       "required": ["email", "role"]
+    },
+    "Editorial": {
+      "title": "Editorial",
+      "description": "An editorial article with publisher, date, text, vocabulary highlights, and practice MCQs",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the editorial"
+        },
+        "title": {
+          "type": "string",
+          "description": "Editorial title or headline",
+          "maxLength": 300
+        },
+        "date": {
+          "type": "string",
+          "description": "Editorial publication date in YYYY-MM-DD format"
+        },
+        "publisher": {
+          "type": "string",
+          "description": "Name of publisher or newspaper",
+          "maxLength": 100
+        },
+        "category": {
+          "type": "string",
+          "description": "Domain or category of the editorial",
+          "maxLength": 100
+        },
+        "content": {
+          "type": "string",
+          "description": "Full text paragraphs of the editorial"
+        },
+        "summary": {
+          "type": "string",
+          "description": "Optional brief takeaway or key points summary"
+        },
+        "vocabulary": {
+          "type": "array",
+          "description": "Highlighted vocabulary words with Hindi and English meanings"
+        },
+        "mcqs": {
+          "type": "array",
+          "description": "Comprehension and vocabulary MCQ questions based on the editorial"
+        },
+        "readingTimeMinutes": {
+          "type": "number",
+          "description": "Estimated reading duration in minutes"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp of creation"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "ISO timestamp of last update"
+        },
+        "createdBy": {
+          "type": "string",
+          "description": "Email or identifier of the admin who created the editorial"
+        }
+      },
+      "required": ["id", "title", "date", "publisher", "content"]
     }
   },
   "firestore": {
@@ -91,6 +154,10 @@
     "/admins/{adminId}": {
       "schema": "Admin",
       "description": "Collection of authorized admin users"
+    },
+    "/editorials/{editorialId}": {
+      "schema": "Editorial",
+      "description": "Collection of daily editorial articles with reading comprehension and vocabulary MCQs"
     }
   }
 }

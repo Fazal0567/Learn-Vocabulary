@@ -14,6 +14,7 @@ import {
   ChevronRight,
   Sparkles,
   Layers,
+  FileCode,
 } from 'lucide-react';
 import { WordItem } from '../types';
 import { speakWord } from '../utils/speech';
@@ -24,6 +25,7 @@ interface ManageCustomWordsModalProps {
   allWords: WordItem[];
   customWords: WordItem[];
   onOpenAddModal: () => void;
+  onOpenImportJson?: () => void;
   onEditWord: (word: WordItem) => void;
   onDeleteWord: (id: number) => void;
   onDeleteAllCustomWords?: () => void;
@@ -38,6 +40,7 @@ export const ManageCustomWordsModal: React.FC<ManageCustomWordsModalProps> = ({
   allWords,
   customWords,
   onOpenAddModal,
+  onOpenImportJson,
   onEditWord,
   onDeleteWord,
   onDeleteAllCustomWords,
@@ -156,6 +159,19 @@ export const ManageCustomWordsModal: React.FC<ManageCustomWordsModalProps> = ({
                   <span>({customWords.length})</span>
                 </button>
               )
+            )}
+            {onOpenImportJson && (
+              <button
+                onClick={() => {
+                  onClose();
+                  onOpenImportJson();
+                }}
+                title="Add words using a JSON file or paste JSON code"
+                className="px-3 py-1.5 rounded-xl border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-xs font-bold flex items-center gap-1 shadow-xs transition-all cursor-pointer"
+              >
+                <FileCode className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                <span>Import JSON</span>
+              </button>
             )}
             <button
               onClick={onOpenAddModal}

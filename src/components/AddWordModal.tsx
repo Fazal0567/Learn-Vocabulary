@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { PlusCircle, X, Check, AlertTriangle, Sparkles, Volume2, Languages, Loader2 } from 'lucide-react';
+import { PlusCircle, X, Check, AlertTriangle, Sparkles, Volume2, Languages, Loader2, FileCode } from 'lucide-react';
 import { WordItem } from '../types';
 import { speakWord } from '../utils/speech';
 import { transliterateHinglishToHindi, translateEnglishToHindi } from '../utils/hindiTransliterator';
@@ -10,6 +10,7 @@ interface AddWordModalProps {
   onSaveWord: (wordData: Omit<WordItem, 'id'>, editId?: number) => void;
   existingWords: WordItem[];
   editWord?: WordItem | null;
+  onOpenImportJson?: () => void;
 }
 
 export const AddWordModal: React.FC<AddWordModalProps> = ({
@@ -18,6 +19,7 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
   onSaveWord,
   existingWords,
   editWord = null,
+  onOpenImportJson,
 }) => {
   const [word, setWord] = useState('');
   const [pos, setPos] = useState('adj.');
@@ -257,12 +259,28 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
               </span>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            {!editWord && onOpenImportJson && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenImportJson();
+                }}
+                className="px-2.5 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-xs font-bold hover:bg-amber-100 dark:hover:bg-amber-900/60 flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Add words using a JSON file or paste JSON code"
+              >
+                <FileCode className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                <span>Import JSON</span>
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Scrollable Form Content */}

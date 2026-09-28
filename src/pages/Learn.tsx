@@ -10,6 +10,7 @@ import {
   Moon,
   Sun,
   Plus,
+  FileCode,
 } from 'lucide-react';
 import { WordItem, RevisionFilter } from '../types';
 import { WordCard } from '../components/WordCard';
@@ -38,6 +39,7 @@ interface LearnProps {
   allWords?: WordItem[];
   isAdmin?: boolean;
   onOpenAddWord?: () => void;
+  onOpenImportJson?: () => void;
 }
 
 export const Learn: React.FC<LearnProps> = ({
@@ -60,6 +62,7 @@ export const Learn: React.FC<LearnProps> = ({
   allWords,
   isAdmin = false,
   onOpenAddWord,
+  onOpenImportJson,
 }) => {
   const [direction, setDirection] = useState<'up' | 'down'>('up');
   const learnWrapperRef = useRef<HTMLDivElement>(null);
@@ -157,6 +160,18 @@ export const Learn: React.FC<LearnProps> = ({
 
       {/* Floating Header Actions: Admin Add, Dark Mode Toggle & Search */}
       <div className="absolute top-2 right-3 z-30 flex items-center gap-1.5">
+        {isAdmin && onOpenImportJson && (
+          <button
+            id="admin-import-json-btn-learn"
+            onClick={onOpenImportJson}
+            aria-label="Admin Import Words via JSON"
+            className="p-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold flex items-center gap-1 shadow-xs transition-colors cursor-pointer"
+            title="Add words using a JSON file or paste JSON code"
+          >
+            <FileCode className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">JSON</span>
+          </button>
+        )}
         {isAdmin && onOpenAddWord && (
           <button
             id="admin-add-word-btn-learn"

@@ -18,6 +18,8 @@ import {
   Lock,
   Cloud,
   X,
+  Newspaper,
+  FileCode,
 } from 'lucide-react';
 import { WordItem, NavigationTab } from '../types';
 import { VOCABULARY_DATA } from '../data/vocabulary';
@@ -38,9 +40,11 @@ interface HomeProps {
   allWords?: WordItem[];
   isAdmin?: boolean;
   onOpenAddWord?: () => void;
+  onOpenImportJson?: () => void;
   onOpenAdminAuth?: () => void;
   currentUserEmail?: string | null;
   isCloudSynced?: boolean;
+  editorialsCount?: number;
 }
 
 export const Home: React.FC<HomeProps> = ({
@@ -58,9 +62,11 @@ export const Home: React.FC<HomeProps> = ({
   allWords,
   isAdmin = false,
   onOpenAddWord,
+  onOpenImportJson,
   onOpenAdminAuth,
   currentUserEmail,
   isCloudSynced = true,
+  editorialsCount = 0,
 }) => {
   const wordsList = allWords || VOCABULARY_DATA;
   const currentWord = wordsList.find(w => w.id === currentWordId) || wordsList[0];
@@ -349,15 +355,58 @@ export const Home: React.FC<HomeProps> = ({
               </p>
             </div>
           </div>
-          <button
-            onClick={onOpenAddWord}
-            className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1 shadow-sm transition-all shrink-0 cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Add Word</span>
-          </button>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {onOpenImportJson && (
+              <button
+                onClick={onOpenImportJson}
+                className="px-2.5 py-1.5 rounded-xl border border-emerald-300 dark:border-emerald-800 bg-white dark:bg-stone-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 text-xs font-bold flex items-center gap-1 shadow-xs transition-all cursor-pointer"
+                title="Add words using a JSON file or paste JSON code"
+              >
+                <FileCode className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Import</span>
+                <span>JSON</span>
+              </button>
+            )}
+            <button
+              onClick={onOpenAddWord}
+              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1 shadow-sm transition-all shrink-0 cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add Word</span>
+            </button>
+          </div>
         </div>
       )}
+
+      {/* Daily Editorials Feature Banner */}
+      <div
+        id="home-editorial-card"
+        onClick={() => onNavigate('editorial')}
+        className="p-4 rounded-2xl bg-gradient-to-r from-stone-900 via-stone-800 to-amber-950 text-white shadow-md hover:shadow-lg transition-all cursor-pointer border border-stone-700/60 relative overflow-hidden group"
+      >
+        <div className="flex items-center justify-between relative z-10">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-amber-500 text-white flex items-center justify-center font-bold shadow-md shrink-0">
+              <Newspaper className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h4 className="text-sm font-extrabold text-white">Editorial & Comprehension</h4>
+                <span className="px-2 py-0.5 rounded-full bg-amber-400 text-stone-950 text-[10px] font-black uppercase tracking-wider">
+                  New
+                </span>
+              </div>
+              <p className="text-xs text-stone-300 mt-0.5">
+                The Hindu & Indian Express editorials with vocabulary and MCQs
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 text-amber-400 text-xs font-bold shrink-0">
+            <span className="hidden sm:inline">Explore</span>
+            <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+          </div>
+        </div>
+      </div>
 
       {/* Quick Launch Cards */}
       <div className="grid grid-cols-2 gap-3 pt-1">

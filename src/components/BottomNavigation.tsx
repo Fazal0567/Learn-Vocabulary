@@ -2,6 +2,7 @@ import React from 'react';
 import {
   Home,
   BookOpen,
+  Newspaper,
   Star,
   Heart,
   RotateCcw,
@@ -17,6 +18,7 @@ interface BottomNavigationProps {
   onSelectTab: (tab: NavigationTab) => void;
   favoritesCount: number;
   importantCount: number;
+  editorialsCount?: number;
 }
 
 interface NavItem {
@@ -31,10 +33,12 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
   onSelectTab,
   favoritesCount,
   importantCount,
+  editorialsCount,
 }) => {
   const items: NavItem[] = [
     { id: 'home', label: 'Home', icon: Home },
     { id: 'learn', label: 'Learn', icon: BookOpen },
+    { id: 'editorial', label: 'Editorial', icon: Newspaper, badge: editorialsCount },
     { id: 'revision', label: 'Revise', icon: RotateCcw },
     { id: 'quiz', label: 'Quiz', icon: HelpCircle },
     { id: 'important', label: 'Starred', icon: Star, badge: importantCount },
