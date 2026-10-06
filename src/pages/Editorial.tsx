@@ -18,6 +18,7 @@ import {
   Sparkles,
   ChevronRight,
   Filter,
+  FileCode,
 } from 'lucide-react';
 import { EditorialItem, EditorialMCQ } from '../types';
 
@@ -28,6 +29,7 @@ interface EditorialProps {
   onOpenEditEditorial: (editorial: EditorialItem) => void;
   onDeleteEditorial: (editorialId: string) => Promise<void>;
   onNavigateHome?: () => void;
+  onOpenImportJson?: () => void;
 }
 
 export const Editorial: React.FC<EditorialProps> = ({
@@ -37,6 +39,7 @@ export const Editorial: React.FC<EditorialProps> = ({
   onOpenEditEditorial,
   onDeleteEditorial,
   onNavigateHome,
+  onOpenImportJson,
 }) => {
   // Navigation & selection
   const [selectedEditorialId, setSelectedEditorialId] = useState<string | null>(null);
@@ -677,15 +680,27 @@ export const Editorial: React.FC<EditorialProps> = ({
             </div>
           </div>
 
-          {/* Admin Action: Add Editorial */}
+          {/* Admin Action: Add Editorial & Import JSON */}
           {isAdmin && (
-            <button
-              onClick={onOpenAddEditorial}
-              className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer shrink-0"
-            >
-              <Plus className="w-4 h-4" />
-              <span>New Editorial</span>
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              {onOpenImportJson && (
+                <button
+                  onClick={onOpenImportJson}
+                  className="px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-xs font-bold hover:bg-amber-100 dark:hover:bg-amber-900/60 flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                  title="Upload editorial text, vocabulary, and MCQs via JSON"
+                >
+                  <FileCode className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                  <span>Import JSON</span>
+                </button>
+              )}
+              <button
+                onClick={onOpenAddEditorial}
+                className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer shrink-0"
+              >
+                <Plus className="w-4 h-4" />
+                <span>New Editorial</span>
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -772,13 +787,24 @@ export const Editorial: React.FC<EditorialProps> = ({
                 : 'No editorials published yet.'}
             </p>
             {isAdmin && (
-              <button
-                onClick={onOpenAddEditorial}
-                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold inline-flex items-center gap-1.5 shadow-sm"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Create First Editorial</span>
-              </button>
+              <div className="flex items-center justify-center gap-2">
+                {onOpenImportJson && (
+                  <button
+                    onClick={onOpenImportJson}
+                    className="px-4 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-xs font-bold hover:bg-amber-100 dark:hover:bg-amber-900/60 inline-flex items-center gap-1.5 shadow-xs cursor-pointer"
+                  >
+                    <FileCode className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                    <span>Upload via JSON</span>
+                  </button>
+                )}
+                <button
+                  onClick={onOpenAddEditorial}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold inline-flex items-center gap-1.5 shadow-sm cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Create First Editorial</span>
+                </button>
+              </div>
             )}
           </div>
         ) : (

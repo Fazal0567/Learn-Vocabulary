@@ -52,5 +52,17 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isValidId(adminId);
     }
+
+    // Anonymous visitor & user traffic tracking (for admin insights)
+    match /visitors/{visitorId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Aggregated site usage and user analytics
+    match /analytics/{metricId} {
+      allow read: if true;
+      allow write: if true;
+    }
   }
 }

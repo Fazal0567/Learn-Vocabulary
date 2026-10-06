@@ -20,6 +20,7 @@ import {
   X,
   Newspaper,
   FileCode,
+  Users,
 } from 'lucide-react';
 import { WordItem, NavigationTab } from '../types';
 import { VOCABULARY_DATA } from '../data/vocabulary';
@@ -42,6 +43,7 @@ interface HomeProps {
   onOpenAddWord?: () => void;
   onOpenImportJson?: () => void;
   onOpenAdminAuth?: () => void;
+  onOpenAnalytics?: () => void;
   currentUserEmail?: string | null;
   isCloudSynced?: boolean;
   editorialsCount?: number;
@@ -64,6 +66,7 @@ export const Home: React.FC<HomeProps> = ({
   onOpenAddWord,
   onOpenImportJson,
   onOpenAdminAuth,
+  onOpenAnalytics,
   currentUserEmail,
   isCloudSynced = true,
   editorialsCount = 0,
@@ -339,40 +342,58 @@ export const Home: React.FC<HomeProps> = ({
 
       {/* Admin Quick Action (Visible only when Admin mode is unlocked) */}
       {isAdmin && onOpenAddWord && (
-        <div className="p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 flex items-center justify-between gap-3 shadow-xs">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-emerald-500 text-white flex items-center justify-center font-bold shrink-0">
+        <div className="p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 space-y-3 shadow-xs">
+          {/* Header Row: Shield, Admin Active & Description with full width */}
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold shrink-0 shadow-xs">
               <ShieldCheck className="w-4 h-4" />
             </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <h4 className="text-xs font-bold text-emerald-900 dark:text-emerald-200">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <h4 className="text-xs font-bold text-emerald-950 dark:text-emerald-100">
                   Admin Active
                 </h4>
+                <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200">
+                  Cloud Live
+                </span>
               </div>
-              <p className="text-[11px] text-emerald-700 dark:text-emerald-400">
+              <p className="text-[11px] text-emerald-700 dark:text-emerald-300/90 leading-tight mt-0.5">
                 All words you add sync live across every learner device
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 shrink-0">
+
+          {/* Action Buttons Row: 3 Clean, Well-spaced Grid Buttons */}
+          <div className="grid grid-cols-3 gap-2 pt-0.5">
+            {onOpenAnalytics && (
+              <button
+                id="admin-analytics-home-btn"
+                onClick={onOpenAnalytics}
+                className="py-2 px-1.5 rounded-xl border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-stone-850 hover:bg-emerald-50 dark:hover:bg-emerald-900/50 text-emerald-800 dark:text-emerald-200 text-xs font-bold flex items-center justify-center gap-1 shadow-xs transition-all cursor-pointer"
+                title="View how many users opened or used the app"
+              >
+                <Users className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <span className="truncate">Users</span>
+              </button>
+            )}
             {onOpenImportJson && (
               <button
+                id="admin-import-json-home-btn"
                 onClick={onOpenImportJson}
-                className="px-2.5 py-1.5 rounded-xl border border-emerald-300 dark:border-emerald-800 bg-white dark:bg-stone-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 text-xs font-bold flex items-center gap-1 shadow-xs transition-all cursor-pointer"
+                className="py-2 px-1.5 rounded-xl border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-stone-850 hover:bg-emerald-50 dark:hover:bg-emerald-900/50 text-emerald-800 dark:text-emerald-200 text-xs font-bold flex items-center justify-center gap-1 shadow-xs transition-all cursor-pointer"
                 title="Add words using a JSON file or paste JSON code"
               >
-                <FileCode className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Import</span>
-                <span>JSON</span>
+                <FileCode className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <span className="truncate">Import</span>
               </button>
             )}
             <button
+              id="admin-add-word-home-btn"
               onClick={onOpenAddWord}
-              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1 shadow-sm transition-all shrink-0 cursor-pointer"
+              className="py-2 px-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-1 shadow-sm transition-all cursor-pointer"
             >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Add Word</span>
+              <Plus className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">Add Word</span>
             </button>
           </div>
         </div>

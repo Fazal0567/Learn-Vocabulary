@@ -88,3 +88,25 @@ export interface QuizQuestion {
   correctIndex: number;
   explanation: string;
 }
+
+export interface VisitorRecord {
+  id: string;
+  firstSeenAt: string;
+  lastActiveAt: string;
+  lastActiveDate: string;
+  visitCount: number;
+  deviceType: 'Mobile' | 'Tablet' | 'Desktop';
+  platform?: string;
+  wordsLearnedCount?: number;
+}
+
+export interface UserAnalyticsStats {
+  totalUniqueUsers: number;
+  activeToday: number;
+  totalAppOpens: number;
+  mobileUsersCount: number;
+  desktopUsersCount: number;
+  tabletUsersCount: number;
+  recentVisitors: VisitorRecord[];
+  lastUpdated?: string;
+}

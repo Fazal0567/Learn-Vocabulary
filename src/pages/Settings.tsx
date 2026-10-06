@@ -16,6 +16,7 @@ import {
   Wifi,
   WifiOff,
   FileCode,
+  Users,
 } from 'lucide-react';
 import { UserSettings } from '../types';
 
@@ -31,6 +32,7 @@ interface SettingsProps {
   onOpenManageCustomWords?: () => void;
   onOpenChangePin?: () => void;
   onLockAdmin?: () => void;
+  onOpenAnalytics?: () => void;
   currentUserEmail?: string | null;
   isCloudSynced?: boolean;
   isOnline?: boolean;
@@ -51,6 +53,7 @@ export const Settings: React.FC<SettingsProps> = ({
   onOpenManageCustomWords,
   onOpenChangePin,
   onLockAdmin,
+  onOpenAnalytics,
   currentUserEmail,
   isCloudSynced = true,
   isOnline = true,
@@ -344,6 +347,28 @@ export const Settings: React.FC<SettingsProps> = ({
               <span className="font-semibold text-stone-700 dark:text-stone-300">Custom Words Added:</span>
               <span className="font-mono font-bold text-amber-600 dark:text-amber-400">{customWordsCount} words</span>
             </div>
+
+            {onOpenAnalytics && (
+              <div className="p-3 rounded-xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/60 dark:border-blue-900/40 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg bg-blue-500 text-white flex items-center justify-center">
+                    <Users className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <span className="font-semibold text-stone-800 dark:text-stone-200 block">User & Visitor Analytics</span>
+                    <span className="text-[10px] text-stone-500 dark:text-stone-400">Track how many users opened & used the site</span>
+                  </div>
+                </div>
+                <button
+                  id="admin-view-analytics-btn"
+                  onClick={onOpenAnalytics}
+                  className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  <span>View Stats</span>
+                </button>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
               <button

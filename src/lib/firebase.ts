@@ -13,6 +13,8 @@ import {
   orderBy,
   getDocFromServer,
   writeBatch,
+  increment,
+  limit,
 } from 'firebase/firestore';
 import {
   getAuth,
@@ -24,7 +26,7 @@ import {
   signInAnonymously,
 } from 'firebase/auth';
 import firebaseConfig from '../../firebase-applet-config.json';
-import { WordItem, EditorialItem } from '../types';
+import { WordItem, EditorialItem, VisitorRecord, UserAnalyticsStats } from '../types';
 
 // Designated Super Admin Email from project creator
 export const SUPER_ADMIN_EMAIL = 'fazalalicontribute@gmail.com';
@@ -450,9 +452,235 @@ export async function syncEditorialToFirestore(editorial: EditorialItem, authorE
 }
 
 /**
+ * Batch save multiple editorials to Firestore in chunks
+ */
+export async function syncBatchEditorialsToFirestore(
+  editorials: EditorialItem[],
+  authorEmail?: string
+): Promise<void> {
+  if (!editorials || editorials.length === 0) return;
+  const nowIso = new Date().toISOString();
+  const author = authorEmail || auth.currentUser?.email || 'admin';
+  const BATCH_CHUNK_SIZE = 400;
+
+  for (let i = 0; i < editorials.length; i += BATCH_CHUNK_SIZE) {
+    const chunk = editorials.slice(i, i + BATCH_CHUNK_SIZE);
+    const batch = writeBatch(db);
+
+    for (const item of chunk) {
+      const docRef = doc(db, 'editorials', item.id);
+      batch.set(
+        docRef,
+        {
+          id: item.id,
+          title: item.title.trim(),
+          date: item.date.trim(),
+          publisher: item.publisher.trim(),
+          category: (item.category || 'General').trim(),
+          content: item.content.trim(),
+          summary: (item.summary || '').trim(),
+          vocabulary: Array.isArray(item.vocabulary) ? item.vocabulary : [],
+          mcqs: Array.isArray(item.mcqs) ? item.mcqs : [],
+          readingTimeMinutes: item.readingTimeMinutes || Math.max(1, Math.ceil(item.content.split(/\s+/).length / 200)),
+          createdAt: item.createdAt || nowIso,
+          updatedAt: nowIso,
+          createdBy: author,
+        },
+        { merge: true }
+      );
+    }
+
+    await batch.commit();
+  }
+}
+
+/**
  * Delete an editorial from Firestore
  */
 export async function deleteEditorialFromFirestore(editorialId: string): Promise<void> {
   const docRef = doc(db, 'editorials', editorialId);
   await deleteDoc(docRef);
+}
+
+/**
+ * Automatically log an anonymous visitor / device session in Firestore.
+ * Lightweight, privacy-safe, and runs once per session/visit.
+ */
+export async function trackUserVisit(wordsLearnedCount?: number): Promise<void> {
+  try {
+    let visitorId = localStorage.getItem('vocab_visitor_id');
+    let isNewVisitor = false;
+    if (!visitorId) {
+      isNewVisitor = true;
+      visitorId = 'u_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7);
+      localStorage.setItem('vocab_visitor_id', visitorId);
+    }
+
+    const todayDate = new Date().toISOString().slice(0, 10);
+    const sessionKey = 'vocab_session_' + todayDate;
+    const isNewSession = !sessionStorage.getItem(sessionKey);
+    if (isNewSession) {
+      sessionStorage.setItem(sessionKey, '1');
+    }
+
+    const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+    let deviceType: 'Mobile' | 'Tablet' | 'Desktop' = 'Desktop';
+    if (/ipad|tablet|(android(?!.*mobile))/i.test(ua)) {
+      deviceType = 'Tablet';
+    } else if (/mobile|iphone|ipod|blackberry|opera mini|iemobile|wpdesktop/i.test(ua)) {
+      deviceType = 'Mobile';
+    }
+
+    let platform = 'Web';
+    if (/android/i.test(ua)) platform = 'Android';
+    else if (/iphone|ipad|ipod/i.test(ua)) platform = 'iOS';
+    else if (/windows/i.test(ua)) platform = 'Windows';
+    else if (/macintosh|mac os x/i.test(ua)) platform = 'macOS';
+    else if (/linux/i.test(ua)) platform = 'Linux';
+
+    const nowIso = new Date().toISOString();
+    let firstSeen = localStorage.getItem('vocab_visitor_first_seen');
+    if (!firstSeen) {
+      firstSeen = nowIso;
+      localStorage.setItem('vocab_visitor_first_seen', firstSeen);
+    }
+
+    const visitorDocRef = doc(db, 'visitors', visitorId);
+    await setDoc(
+      visitorDocRef,
+      {
+        id: visitorId,
+        firstSeenAt: firstSeen,
+        lastActiveAt: nowIso,
+        lastActiveDate: todayDate,
+        visitCount: increment(isNewSession ? 1 : 0),
+        deviceType,
+        platform,
+        wordsLearnedCount: typeof wordsLearnedCount === 'number' ? wordsLearnedCount : 0,
+      },
+      { merge: true }
+    );
+
+    // Global aggregated counts in analytics/overview
+    const overviewRef = doc(db, 'analytics', 'overview');
+    await setDoc(
+      overviewRef,
+      {
+        id: 'overview',
+        totalVisitors: increment(isNewVisitor ? 1 : 0),
+        totalSessions: increment(isNewSession ? 1 : 0),
+        lastUpdated: nowIso,
+      },
+      { merge: true }
+    );
+  } catch (err) {
+    // Graceful offline fallback - never interrupt user experience
+    console.debug('Visitor tracking note:', err);
+  }
+}
+
+/**
+ * Fetch detailed user and visitor analytics (Strictly for Admin view)
+ */
+export async function fetchUserAnalyticsStats(): Promise<UserAnalyticsStats> {
+  try {
+    const todayDate = new Date().toISOString().slice(0, 10);
+    const visitorsRef = collection(db, 'visitors');
+    const snap = await getDocs(visitorsRef);
+
+    let totalUniqueUsers = 0;
+    let activeToday = 0;
+    let totalAppOpens = 0;
+    let mobileUsersCount = 0;
+    let desktopUsersCount = 0;
+    let tabletUsersCount = 0;
+    const visitors: VisitorRecord[] = [];
+
+    snap.forEach((docSnap) => {
+      totalUniqueUsers++;
+      const d = docSnap.data();
+      const vCount = typeof d.visitCount === 'number' ? d.visitCount : 1;
+      totalAppOpens += Math.max(1, vCount);
+
+      if (d.lastActiveDate === todayDate) {
+        activeToday++;
+      }
+
+      const dType = d.deviceType === 'Mobile' ? 'Mobile' : d.deviceType === 'Tablet' ? 'Tablet' : 'Desktop';
+      if (dType === 'Mobile') mobileUsersCount++;
+      else if (dType === 'Tablet') tabletUsersCount++;
+      else desktopUsersCount++;
+
+      visitors.push({
+        id: docSnap.id,
+        firstSeenAt: d.firstSeenAt || d.lastActiveAt || '',
+        lastActiveAt: d.lastActiveAt || '',
+        lastActiveDate: d.lastActiveDate || '',
+        visitCount: Math.max(1, vCount),
+        deviceType: dType,
+        platform: d.platform || 'Unknown',
+        wordsLearnedCount: typeof d.wordsLearnedCount === 'number' ? d.wordsLearnedCount : 0,
+      });
+    });
+
+    // Sort recent visitors by lastActiveAt descending
+    visitors.sort((a, b) => b.lastActiveAt.localeCompare(a.lastActiveAt));
+
+    // Fallback or augment with analytics/overview counters
+    try {
+      const overviewSnap = await getDoc(doc(db, 'analytics', 'overview'));
+      if (overviewSnap.exists()) {
+        const ovData = overviewSnap.data();
+        if (typeof ovData.totalSessions === 'number' && ovData.totalSessions > totalAppOpens) {
+          totalAppOpens = ovData.totalSessions;
+        }
+        if (typeof ovData.totalVisitors === 'number' && ovData.totalVisitors > totalUniqueUsers) {
+          totalUniqueUsers = ovData.totalVisitors;
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    return {
+      totalUniqueUsers: Math.max(totalUniqueUsers, 1),
+      activeToday: Math.max(activeToday, 1),
+      totalAppOpens: Math.max(totalAppOpens, 1),
+      mobileUsersCount,
+      desktopUsersCount: Math.max(desktopUsersCount, 1),
+      tabletUsersCount,
+      recentVisitors: visitors.slice(0, 50),
+      lastUpdated: new Date().toISOString(),
+    };
+  } catch (err) {
+    console.warn('Error fetching analytics stats:', err);
+    return {
+      totalUniqueUsers: 1,
+      activeToday: 1,
+      totalAppOpens: 1,
+      mobileUsersCount: 0,
+      desktopUsersCount: 1,
+      tabletUsersCount: 0,
+      recentVisitors: [],
+      lastUpdated: new Date().toISOString(),
+    };
+  }
+}
+
+/**
+ * Real-time subscription to visitors collection for live admin analytics updates
+ */
+export function subscribeToUserAnalytics(onStatsUpdated: (stats: UserAnalyticsStats) => void) {
+  const visitorsRef = collection(db, 'visitors');
+  return onSnapshot(
+    visitorsRef,
+    () => {
+      fetchUserAnalyticsStats().then((stats) => {
+        onStatsUpdated(stats);
+      });
+    },
+    (err) => {
+      console.warn('Subscription error for visitors analytics:', err);
+    }
+  );
 }

@@ -25,8 +25,10 @@ import { AdminAuthModal } from './components/AdminAuthModal';
 import { AddWordModal } from './components/AddWordModal';
 import { ImportWordsJsonModal } from './components/ImportWordsJsonModal';
 import { AddEditorialModal } from './components/AddEditorialModal';
+import { ImportEditorialJsonModal } from './components/ImportEditorialJsonModal';
 import { ManageCustomWordsModal } from './components/ManageCustomWordsModal';
 import { ChangeAdminPasscodeModal } from './components/ChangeAdminPasscodeModal';
+import { UserAnalyticsModal } from './components/UserAnalyticsModal';
 import {
   cacheWordsToIndexedDB,
   loadWordsFromIndexedDB,
@@ -49,7 +51,9 @@ import {
   fetchEditorialsFromFirestore,
   subscribeToEditorials,
   syncEditorialToFirestore,
+  syncBatchEditorialsToFirestore,
   deleteEditorialFromFirestore,
+  trackUserVisit,
 } from './lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
@@ -82,8 +86,10 @@ export default function App() {
   const [isAdminAuthOpen, setIsAdminAuthOpen] = useState(false);
   const [isAddWordOpen, setIsAddWordOpen] = useState(false);
   const [isImportWordsOpen, setIsImportWordsOpen] = useState(false);
+  const [isImportEditorialOpen, setIsImportEditorialOpen] = useState(false);
   const [isManageWordsOpen, setIsManageWordsOpen] = useState(false);
   const [isChangePinOpen, setIsChangePinOpen] = useState(false);
+  const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
   const [wordToEdit, setWordToEdit] = useState<WordItem | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
@@ -141,6 +147,9 @@ export default function App() {
   // Firebase Initialization, Real-time Cloud Word Sync & Auth Tracking
   useEffect(() => {
     testFirestoreConnection();
+
+    // Automatically record anonymous visitor / user session
+    trackUserVisit(learnedIds.length);
 
     // 1. Listen to Firebase Auth state
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
@@ -619,6 +628,33 @@ export default function App() {
     }
   };
 
+  // Batch Import Editorials from JSON (Admin Exclusive)
+  const handleBatchImportEditorials = async (newEditorials: EditorialItem[]) => {
+    if (!newEditorials || newEditorials.length === 0) return;
+
+    setEditorials((prev) => {
+      const copy = [...prev];
+      for (const item of newEditorials) {
+        const idx = copy.findIndex((e) => e.id === item.id);
+        if (idx >= 0) {
+          copy[idx] = item;
+        } else {
+          copy.unshift(item);
+        }
+      }
+      return copy;
+    });
+
+    showToast(`Syncing ${newEditorials.length} editorial(s) to cloud...`);
+    try {
+      await syncBatchEditorialsToFirestore(newEditorials, currentUserEmail || 'admin');
+      showToast(`Successfully published ${newEditorials.length} editorial(s) via JSON!`);
+    } catch (err) {
+      console.error('Batch sync editorials to Firestore failed:', err);
+      showToast(`Saved ${newEditorials.length} editorial(s) locally in offline mode.`);
+    }
+  };
+
   return (
     <div className="w-screen h-[100dvh] flex flex-col bg-stone-100 dark:bg-stone-950 text-stone-900 dark:text-stone-100 overflow-hidden font-['Plus_Jakarta_Sans',sans-serif]">
       {/* Main Content Area */}
@@ -647,6 +683,7 @@ export default function App() {
             }}
             onOpenImportJson={() => setIsImportWordsOpen(true)}
             onOpenAdminAuth={() => setIsAdminAuthOpen(true)}
+            onOpenAnalytics={() => setIsAnalyticsOpen(true)}
             currentUserEmail={currentUserEmail}
             isCloudSynced={isCloudSynced}
             editorialsCount={editorials.length}
@@ -693,6 +730,7 @@ export default function App() {
               setEditorialToEdit(item);
               setIsAddEditorialOpen(true);
             }}
+            onOpenImportJson={() => setIsImportEditorialOpen(true)}
             onDeleteEditorial={handleDeleteEditorial}
             onNavigateHome={() => setActiveTab('home')}
           />
@@ -774,6 +812,7 @@ export default function App() {
             onOpenManageCustomWords={() => setIsManageWordsOpen(true)}
             onOpenChangePin={() => setIsChangePinOpen(true)}
             onLockAdmin={handleLockAdmin}
+            onOpenAnalytics={() => setIsAnalyticsOpen(true)}
             currentUserEmail={currentUserEmail}
             isCloudSynced={isCloudSynced}
             isOnline={isOnline}
@@ -858,6 +897,18 @@ export default function App() {
         }}
         onSave={handleSaveEditorial}
         editorialToEdit={editorialToEdit}
+        onOpenImportJson={() => setIsImportEditorialOpen(true)}
+      />
+
+      {/* Admin Import Editorial via JSON Modal */}
+      <ImportEditorialJsonModal
+        isOpen={isImportEditorialOpen}
+        onClose={() => setIsImportEditorialOpen(false)}
+        onImportEditorials={handleBatchImportEditorials}
+        onOpenInEditor={(editorial) => {
+          setEditorialToEdit(editorial);
+          setIsAddEditorialOpen(true);
+        }}
       />
 
       {/* Admin Manage Custom Words Modal */}
@@ -891,6 +942,13 @@ export default function App() {
             console.error('Failed to sync passcode to Firestore:', err);
           }
         }}
+      />
+
+      {/* Admin User Traffic & Analytics Modal (Strictly Admin Only) */}
+      <UserAnalyticsModal
+        isOpen={isAnalyticsOpen}
+        onClose={() => setIsAnalyticsOpen(false)}
+        isAdmin={isAdmin}
       />
 
       {/* Floating Action Toast Notification */}

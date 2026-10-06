@@ -144,6 +144,66 @@
         }
       },
       "required": ["id", "title", "date", "publisher", "content"]
+    },
+    "Visitor": {
+      "title": "Visitor",
+      "description": "Anonymous tracking entry for a user device opening or using the application",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique visitor device identifier"
+        },
+        "firstSeenAt": {
+          "type": "string",
+          "description": "ISO timestamp of when the user first visited"
+        },
+        "lastActiveAt": {
+          "type": "string",
+          "description": "ISO timestamp of last activity"
+        },
+        "lastActiveDate": {
+          "type": "string",
+          "description": "Date string YYYY-MM-DD of last activity"
+        },
+        "visitCount": {
+          "type": "number",
+          "description": "Total number of times this device opened the app"
+        },
+        "deviceType": {
+          "type": "string",
+          "description": "Device category: Mobile, Tablet, or Desktop"
+        },
+        "platform": {
+          "type": "string",
+          "description": "Browser platform or OS summary"
+        }
+      },
+      "required": ["id", "firstSeenAt", "lastActiveAt", "visitCount"]
+    },
+    "AnalyticsSummary": {
+      "title": "AnalyticsSummary",
+      "description": "Aggregated user statistics and daily usage counts",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Metric identifier, e.g. overview or daily record"
+        },
+        "totalVisitors": {
+          "type": "number",
+          "description": "Total unique visitors registered"
+        },
+        "totalSessions": {
+          "type": "number",
+          "description": "Total site opens or session launches"
+        },
+        "lastUpdated": {
+          "type": "string",
+          "description": "ISO timestamp of last update"
+        }
+      },
+      "required": ["id"]
     }
   },
   "firestore": {
@@ -158,6 +218,14 @@
     "/editorials/{editorialId}": {
       "schema": "Editorial",
       "description": "Collection of daily editorial articles with reading comprehension and vocabulary MCQs"
+    },
+    "/visitors/{visitorId}": {
+      "schema": "Visitor",
+      "description": "Collection of anonymous device visitor entries for user count tracking"
+    },
+    "/analytics/{metricId}": {
+      "schema": "AnalyticsSummary",
+      "description": "Aggregated user statistics and totals for admin view"
     }
   }
 }

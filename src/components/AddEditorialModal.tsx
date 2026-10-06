@@ -11,6 +11,9 @@ import {
   AlertCircle,
   FileText,
   Sparkles,
+  FileCode,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { EditorialItem, EditorialMCQ, EditorialVocabulary } from '../types';
 
@@ -19,6 +22,7 @@ interface AddEditorialModalProps {
   onClose: () => void;
   onSave: (editorial: EditorialItem) => Promise<void>;
   editorialToEdit?: EditorialItem | null;
+  onOpenImportJson?: () => void;
 }
 
 const PUBLISHER_PRESETS = [
@@ -50,6 +54,7 @@ export const AddEditorialModal: React.FC<AddEditorialModalProps> = ({
   onClose,
   onSave,
   editorialToEdit,
+  onOpenImportJson,
 }) => {
   const [title, setTitle] = useState('');
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
@@ -70,9 +75,12 @@ export const AddEditorialModal: React.FC<AddEditorialModalProps> = ({
   const [mcqs, setMcqs] = useState<EditorialMCQ[]>([]);
 
   // State
-  const [activeTab, setActiveTab] = useState<'content' | 'vocab' | 'mcqs'>('content');
+  const [activeTab, setActiveTab] = useState<'content' | 'vocab' | 'mcqs' | 'json'>('content');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [jsonQuickInput, setJsonQuickInput] = useState('');
+  const [jsonSuccessBanner, setJsonSuccessBanner] = useState<string | null>(null);
+  const [copiedTemplate, setCopiedTemplate] = useState(false);
 
   // Sync state when editing
   useEffect(() => {
@@ -104,8 +112,122 @@ export const AddEditorialModal: React.FC<AddEditorialModalProps> = ({
       setMcqs([]);
     }
     setErrorMessage(null);
+    setJsonSuccessBanner(null);
     setActiveTab('content');
   }, [editorialToEdit, isOpen]);
+
+  const handleApplyJsonQuickFill = () => {
+    if (!jsonQuickInput.trim()) {
+      setErrorMessage('Please paste valid JSON text into the box.');
+      return;
+    }
+    try {
+      let data = JSON.parse(jsonQuickInput);
+      if (Array.isArray(data) && data.length > 0) {
+        data = data[0];
+      } else if (data && typeof data === 'object' && Array.isArray(data.editorials)) {
+        data = data.editorials[0];
+      }
+
+      if (!data || typeof data !== 'object') {
+        throw new Error('JSON is not a valid editorial object.');
+      }
+
+      const pTitle = String(data.title || data.headline || '').trim();
+      const pContent = String(data.content || data.article || data.text || '').trim();
+      if (!pTitle && !pContent) {
+        throw new Error('JSON must include at least "title" or "content".');
+      }
+
+      if (pTitle) setTitle(pTitle);
+      if (pContent) setContent(pContent);
+      if (data.date) setDate(String(data.date).trim());
+      if (data.publisher) {
+        const pub = String(data.publisher).trim();
+        if (PUBLISHER_PRESETS.includes(pub)) {
+          setPublisherSelect(pub);
+          setCustomPublisher('');
+        } else {
+          setPublisherSelect('Other / Custom');
+          setCustomPublisher(pub);
+        }
+      }
+      if (data.category) setCategory(String(data.category).trim());
+      if (data.summary) setSummary(String(data.summary).trim());
+
+      // Parse vocab
+      const rawVocab = data.vocabulary || data.vocab || data.words || data.keyVocabulary;
+      if (Array.isArray(rawVocab)) {
+        const parsedV: EditorialVocabulary[] = [];
+        rawVocab.forEach((v: any) => {
+          if (!v || typeof v !== 'object') return;
+          const w = String(v.word || v.term || '').trim();
+          const mh = String(v.meaningHindi || v.hindi || '').trim();
+          const me = String(v.meaningEnglish || v.english || v.meaning || '').trim();
+          const pos = String(v.partOfSpeech || v.pos || 'noun').trim();
+          const cs = String(v.contextSentence || v.example || '').trim();
+          if (w) {
+            parsedV.push({
+              word: w.toUpperCase(),
+              meaningHindi: mh || me,
+              meaningEnglish: me || mh,
+              partOfSpeech: pos,
+              contextSentence: cs || undefined,
+            });
+          }
+        });
+        setVocabulary(parsedV);
+      }
+
+      // Parse MCQs
+      const rawMcqs = data.mcqs || data.questions || data.quiz;
+      if (Array.isArray(rawMcqs)) {
+        const parsedM: EditorialMCQ[] = [];
+        rawMcqs.forEach((q: any, idx: number) => {
+          if (!q || typeof q !== 'object') return;
+          const quest = String(q.question || q.prompt || '').trim();
+          if (!quest) return;
+          let options: string[] = [];
+          if (Array.isArray(q.options)) {
+            options = q.options.map((o: any) => String(o || '').trim());
+          }
+          while (options.length < 4) {
+            options.push(`Option ${String.fromCharCode(65 + options.length)}`);
+          }
+          let ansIdx = 0;
+          const ans = q.correctOptionIndex ?? q.correctIndex ?? q.answer;
+          if (typeof ans === 'number' && ans >= 0 && ans < 4) {
+            ansIdx = ans;
+          } else if (typeof ans === 'string') {
+            const up = ans.toUpperCase().trim();
+            if (['A', 'B', 'C', 'D'].includes(up)) {
+              ansIdx = up.charCodeAt(0) - 65;
+            } else {
+              const matched = options.findIndex((opt) => opt.toLowerCase() === ans.toLowerCase());
+              if (matched >= 0) ansIdx = matched;
+            }
+          }
+          parsedM.push({
+            id: q.id || `mcq_${Date.now()}_${idx}`,
+            question: quest,
+            options: options.slice(0, 4),
+            correctOptionIndex: ansIdx,
+            explanation: String(q.explanation || '').trim(),
+          });
+        });
+        setMcqs(parsedM);
+      }
+
+      setErrorMessage(null);
+      setJsonSuccessBanner(
+        `Successfully loaded "${pTitle || 'Editorial'}" with ${rawVocab?.length || 0} vocabulary words and ${rawMcqs?.length || 0} MCQs into the form! Review in Tabs 1, 2, and 3.`
+      );
+      setActiveTab('content');
+      setTimeout(() => setJsonSuccessBanner(null), 7000);
+    } catch (err: any) {
+      setErrorMessage(`JSON Parse Error: ${err.message || 'Invalid format'}`);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -258,24 +380,40 @@ export const AddEditorialModal: React.FC<AddEditorialModalProps> = ({
                 {editorialToEdit ? 'Edit Editorial' : 'Create New Editorial'}
               </h2>
               <p className="text-xs text-stone-500 dark:text-stone-400">
-                Publish date-wise editorial with reading content and MCQs
+                Publish date-wise editorial with reading content, vocabulary and MCQs
               </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-xl text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            {onOpenImportJson && !editorialToEdit && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenImportJson();
+                }}
+                className="px-2.5 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-xs font-bold hover:bg-amber-100 dark:hover:bg-amber-900/60 flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Upload full editorial via JSON file"
+              >
+                <FileCode className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                <span>Import JSON</span>
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="p-2 rounded-xl text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Tab switcher */}
-        <div className="flex border-b border-stone-200 dark:border-stone-800 bg-stone-100/60 dark:bg-stone-950/40 px-5 pt-2 gap-2 shrink-0">
+        <div className="flex border-b border-stone-200 dark:border-stone-800 bg-stone-100/60 dark:bg-stone-950/40 px-5 pt-2 gap-2 shrink-0 overflow-x-auto">
           <button
             type="button"
             onClick={() => setActiveTab('content')}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-t-xl text-xs font-bold transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-t-xl text-xs font-bold transition-all shrink-0 ${
               activeTab === 'content'
                 ? 'bg-white dark:bg-stone-900 text-amber-600 dark:text-amber-400 border-t border-x border-stone-200 dark:border-stone-800'
                 : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
@@ -287,7 +425,7 @@ export const AddEditorialModal: React.FC<AddEditorialModalProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('vocab')}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-t-xl text-xs font-bold transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-t-xl text-xs font-bold transition-all shrink-0 ${
               activeTab === 'vocab'
                 ? 'bg-white dark:bg-stone-900 text-amber-600 dark:text-amber-400 border-t border-x border-stone-200 dark:border-stone-800'
                 : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
@@ -299,7 +437,7 @@ export const AddEditorialModal: React.FC<AddEditorialModalProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('mcqs')}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-t-xl text-xs font-bold transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-t-xl text-xs font-bold transition-all shrink-0 ${
               activeTab === 'mcqs'
                 ? 'bg-white dark:bg-stone-900 text-amber-600 dark:text-amber-400 border-t border-x border-stone-200 dark:border-stone-800'
                 : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
@@ -308,7 +446,27 @@ export const AddEditorialModal: React.FC<AddEditorialModalProps> = ({
             <HelpCircle className="w-3.5 h-3.5" />
             <span>3. MCQs Quiz ({mcqs.length})</span>
           </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('json')}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-t-xl text-xs font-bold transition-all shrink-0 ${
+              activeTab === 'json'
+                ? 'bg-white dark:bg-stone-900 text-amber-600 dark:text-amber-400 border-t border-x border-stone-200 dark:border-stone-800'
+                : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
+            }`}
+          >
+            <FileCode className="w-3.5 h-3.5 text-amber-600" />
+            <span>4. Paste JSON</span>
+          </button>
         </div>
+
+        {/* Success Alert */}
+        {jsonSuccessBanner && (
+          <div className="mx-5 mt-3 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 flex items-start gap-2.5 text-xs text-emerald-800 dark:text-emerald-300">
+            <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-600" />
+            <p className="flex-1 font-semibold">{jsonSuccessBanner}</p>
+          </div>
+        )}
 
         {/* Error Alert */}
         {errorMessage && (
@@ -679,6 +837,155 @@ export const AddEditorialModal: React.FC<AddEditorialModalProps> = ({
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* TAB 4: PASTE JSON QUICK FILL */}
+          {activeTab === 'json' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-stone-700 dark:text-stone-300">
+                    Quick JSON Filler
+                  </h4>
+                  <p className="text-[11px] text-stone-500">
+                    Paste editorial JSON text containing article content, vocabulary list, and MCQs to auto-populate the form
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setJsonQuickInput(
+                        JSON.stringify(
+                          {
+                            title: "A Green Transition Grounded in Energy Justice",
+                            date: new Date().toISOString().split('T')[0],
+                            publisher: "The Hindu",
+                            category: "Environment & Climate",
+                            content: "The global push towards decarbonisation must not lose sight of equity and energy access. Developing nations require substantial climate finance and technology transfer to phase down fossil fuels without stunting developmental goals.\n\nRenewable energy expansion must go hand-in-hand with resilient grid infrastructure and decentralized community solar systems to ensure affordable power for marginalized households.",
+                            summary: "Decarbonisation policies must balance ecological imperatives with developmental equities and targeted climate financing.",
+                            vocabulary: [
+                              {
+                                word: "DECARBONISATION",
+                                meaningHindi: "कार्बन उत्सर्जन में कमी / कार्बन मुक्ति",
+                                meaningEnglish: "the reduction or removal of carbon dioxide emissions",
+                                partOfSpeech: "noun",
+                                contextSentence: "The pace of global decarbonisation hinges on technological accessibility."
+                              },
+                              {
+                                word: "IMPERATIVE",
+                                meaningHindi: "अनिवार्य / अत्यंत आवश्यक",
+                                meaningEnglish: "of vital importance; crucial or an essential requirement",
+                                partOfSpeech: "adj.",
+                                contextSentence: "Securing renewable grids has become an economic imperative."
+                              }
+                            ],
+                            mcqs: [
+                              {
+                                question: "What critical factor must accompany the phase-down of fossil fuels in developing nations?",
+                                options: [
+                                  "Substantial climate finance and technology transfer",
+                                  "A total suspension of industrial manufacturing",
+                                  "An immediate shutdown of conventional power stations",
+                                  "Privatization of all public utility providers"
+                                ],
+                                correctOptionIndex: 0,
+                                explanation: "The text states that developing nations require climate finance and technology transfer to grow sustainably."
+                              }
+                            ]
+                          },
+                          null,
+                          2
+                        )
+                      );
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 text-[11px] font-semibold hover:bg-amber-100 flex items-center gap-1 transition-colors cursor-pointer"
+                  >
+                    <Sparkles className="w-3 h-3 text-amber-500" />
+                    <span>Load Sample</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const sampleStr = JSON.stringify(
+                        {
+                          title: "Editorial Headline...",
+                          date: "YYYY-MM-DD",
+                          publisher: "The Hindu",
+                          category: "Economy",
+                          content: "Full editorial article text...",
+                          summary: "Summary takeaways...",
+                          vocabulary: [
+                            { word: "WORD", meaningHindi: "हिंदी अर्थ", meaningEnglish: "English definition", partOfSpeech: "adj." }
+                          ],
+                          mcqs: [
+                            {
+                              question: "Comprehension Question Statement?",
+                              options: ["Option A", "Option B", "Option C", "Option D"],
+                              correctOptionIndex: 0,
+                              explanation: "Why A is correct..."
+                            }
+                          ]
+                        },
+                        null,
+                        2
+                      );
+                      navigator.clipboard.writeText(sampleStr);
+                      setCopiedTemplate(true);
+                      setTimeout(() => setCopiedTemplate(false), 2000);
+                    }}
+                    className="p-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-300 text-[11px] hover:bg-stone-50 transition-colors cursor-pointer"
+                    title="Copy sample JSON structure"
+                  >
+                    {copiedTemplate ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <textarea
+                  rows={10}
+                  value={jsonQuickInput}
+                  onChange={(e) => setJsonQuickInput(e.target.value)}
+                  placeholder='{
+  "title": "Editorial Title",
+  "publisher": "The Hindu",
+  "category": "Economy & Business",
+  "content": "Full editorial paragraph 1...\n\nParagraph 2...",
+  "vocabulary": [
+    { "word": "PERSISTENT", "meaningHindi": "दृढ़ / निरंतर", "meaningEnglish": "continuing firmly in an opinion or course of action" }
+  ],
+  "mcqs": [
+    {
+      "question": "What is the primary thesis of the author?",
+      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "correctOptionIndex: 0,
+      "explanation": "Detailed explanation..."
+    }
+  ]
+}'
+                  className="w-full p-3 font-mono text-xs rounded-xl bg-stone-900 text-amber-200 border border-stone-700 focus:border-amber-500 outline-none leading-relaxed"
+                  spellCheck={false}
+                />
+              </div>
+
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-[11px] text-stone-500">
+                  Clicking below will parse and fill Tabs 1, 2, and 3 instantly so you can review before publishing.
+                </span>
+                <button
+                  type="button"
+                  onClick={handleApplyJsonQuickFill}
+                  disabled={!jsonQuickInput.trim()}
+                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Apply JSON to Form</span>
+                </button>
+              </div>
             </div>
           )}
         </form>
